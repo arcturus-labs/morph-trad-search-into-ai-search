@@ -1,0 +1,13 @@
+[project]
+name = "ping-backend"
+version = "0.1.0"
+description = "FastAPI backend for Ping application"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.123.9",
+    "uvicorn[standard]==0.24.0",
+    "openai-agents>=0.6.2",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.12.5",
+]
+

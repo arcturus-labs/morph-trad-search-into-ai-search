@@ -1,0 +1,777 @@
+design a wireframe for me for a typical search application that relates to fashion - include search box and button, breadcrumb, "did you mean", facets on the left frame for various reasonable fashion things, search results in the middle with title, snippets
+...
+
+actually, fashion is not a good domain, I want a domain that is readily understandable, that has good facets that can be used as filters, that has a good breadcrumb taxonomy, but that involves text for search results because I also want to showcase highlighting and snippeting and other metadata
+
+before we create anything help me brainstorm a better domain
+
+Great thinking! Let's find a domain that really showcases all those search features effectively. Here are some options that tick your boxes:
+
+Strong Candidates
+Academic/Research Papers - This could be excellent because:
+
+Rich facets: publication year, journal/conference, citation count, field of study, author institution, paper type (survey, empirical, theoretical)
+Clear breadcrumb: Computer Science > Machine Learning > Neural Networks > Transformers
+Lots of text for snippets with technical terms to highlight
+Metadata: authors, citations, DOI, abstract, keywords, published date
+Legal Case Database - Very robust for search features:
+
+Facets: jurisdiction, court level, year, case type, judge, outcome
+Breadcrumb: Federal > Circuit Court > 9th Circuit > Civil Rights
+Rich text excerpts from opinions with legal terminology
+Metadata: case number, parties, counsel, related cases
+Recipe/Cooking Site - More accessible/fun:
+
+Facets: cuisine type, dietary restrictions, cooking time, difficulty, meal type, main ingredient
+Breadcrumb: Recipes > Italian > Pasta > Baked Pasta
+Text for instructions and descriptions
+Metadata: prep time, servings, calories, ratings, author
+Job Listings - Very practical:
+
+Facets: location, salary range, experience level, company size, remote/hybrid/office, posted date, industry
+Breadcrumb: Technology Jobs > Software Engineering > Backend Development
+Job descriptions with highlightable skills and requirements
+Metadata: company, location, posted date, applicants
+Real Estate/Property Listings - Familiar to most people:
+
+Facets: price range, bedrooms, bathrooms, property type, neighborhood, year built, lot size
+Breadcrumb: San Francisco > Mission District > Condos
+Property descriptions with features
+Metadata: price, square footage, listing date, agent
+Which direction appeals to you? I'm leaning toward academic papers or job listings as they're universally understood and have natural, meaningful facets that people would actually use.
+
+real estate is good,
+
+now think of a good search - something in natural language which would ideally be used to influence filters and boosts - lets brainstorm here for a bit
+
+Great choice! Let's brainstorm some natural language searches that would intelligently map to filters and boosts:
+
+Natural Language Search Ideas
+"Family home with yard near good schools under 800k"
+
+Filters: bedrooms ≥3, has yard, price <$800k
+Boosts: properties near highly-rated schools, family-friendly neighborhoods
+Could trigger "did you mean" for $800k vs 800k
+"Walkable downtown condo for young professional"
+
+Filters: property type = condo, downtown areas
+Boosts: walk score >70, near transit, nightlife, coffee shops
+Highlights: "walkable", "downtown" in descriptions
+"Fixer-upper with potential in up-and-coming neighborhood"
+
+Filters: price below market average for area
+Boosts: recent area development, needs renovation/TLC mentions
+Interesting for snippets showing "investor opportunity", "needs work"
+"Pet-friendly apartment near park with parking under 2500/month"
+
+Filters: allows pets, has parking, rent <$2500, proximity to parks
+Boosts: dog parks nearby, pet amenities mentioned
+Good metadata: pet deposit, parking type
+"Quiet suburb home with home office space and big kitchen"
+
+Filters: suburban areas, bedrooms ≥3
+Boosts: mentions of office/study, updated kitchen, cul-de-sac
+Highlights: "home office", "kitchen", "quiet"
+"Modern loft with natural light and open floor plan downtown"
+
+Filters: loft/condo, downtown, recent construction
+Boosts: large windows, high ceilings, "bright" mentions
+Great for architectural terms to highlight
+Which of these feels most realistic and would best showcase your search features? I'm partial to the family home or pet-friendly apartment as they have clear intent with multiple dimensions to parse.
+
+Good examples. Rewrite all of these as pseudo-Lucene queries.
+
+Here are the searches rewritten as pseudo-Lucene queries:
+
+Pseudo-Lucene Query Translations
+"Family home with yard near good schools under 800k"
+
+bedrooms:[3 TO *] AND has_yard:true AND price:[* TO 800000] 
+AND school_rating:[8 TO 10]^2.0
+AND property_type:(house OR single_family)^1.5
+"Walkable downtown condo for young professional"
+
+property_type:condo AND location:downtown AND walk_score:[70 TO *]^2.0
+AND (transit_distance:[* TO 0.5] OR amenities:(nightlife coffee gym))^1.3
+"Fixer-upper with potential in up-and-coming neighborhood"
+
+condition:(fixer needs_work tlc renovation)^1.5 
+AND (description:"investor opportunity" OR description:"potential")^1.8
+AND neighborhood_trend:rising^2.0
+AND price_vs_market:[* TO -10]
+"Pet-friendly apartment near park with parking under 2500/month"
+
+pets_allowed:true AND property_type:apartment 
+AND rent:[* TO 2500] AND has_parking:true
+AND park_distance:[* TO 0.25]^1.5
+AND (amenities:dog_park OR description:"pet friendly")^1.3
+"Quiet suburb home with home office space and big kitchen"
+
+location_type:suburban AND (bedrooms:[3 TO *] OR description:"office")
+AND description:(quiet OR "cul-de-sac" OR peaceful)^1.5
+AND (description:"home office" OR description:study)^2.0
+AND (description:"updated kitchen" OR description:"large kitchen")^1.8
+"Modern loft with natural light and open floor plan downtown"
+
+property_type:loft AND location:downtown 
+AND year_built:[2010 TO *]^1.5
+AND description:("natural light" OR "bright" OR "windows")^2.0
+AND description:("open floor plan" OR "open concept")^1.8
+AND (features:high_ceilings OR description:"high ceilings")^1.3
+The ^ notation indicates boost factors, ranges use [* TO value] or [value TO *], and I've used field-specific queries with boolean operators. Which approach would you like to feature in the wireframe?
+
+Tell me all of the fields in the search engine. tell me examples of common values. tell me the utility of these fields. Are they for search relevance?  are they for numerical boosting? are they for filtering? are they for content/metadata to be shown in the search results ?
+
+Great question! Let's break down all the fields systematically:
+
+Core Identification Fields
+property_id (e.g., "PROP-2024-891234")
+
+Utility: Internal identification, deduplication
+Usage: Backend only, not exposed in search
+listing_date (e.g., "2024-11-15")
+
+Utility: Freshness, recency
+Usage: Boosting (newer listings ranked higher), Filtering (posted within last 7 days), Metadata display ("Listed 3 days ago")
+Text/Content Fields (Full-text Searchable)
+title (e.g., "Charming Victorian with Bay Views", "Modern Downtown Loft")
+
+Utility: Primary search relevance
+Usage: High-weight text matching, Display in results (main headline)
+description (e.g., 500-word property description)
+
+Utility: Detailed search matching, context
+Usage: Text search, Snippet generation with highlighting, Display (truncated preview)
+address_full (e.g., "1234 Maple Street, San Francisco, CA 94110")
+
+Utility: Location matching
+Usage: Search matching, Metadata display
+Categorical Filter Fields
+property_type (values: house, condo, apartment, townhouse, loft, multi_family)
+
+Utility: Core classification
+Usage: Filtering (facet on left), Search relevance (type matching), Display badge
+bedrooms (values: 0, 1, 2, 3, 4, 5+)
+
+Utility: Key spec
+Usage: Filtering (range facet), Search relevance (3+ bedrooms), Metadata display ("3 BD")
+bathrooms (values: 1, 1.5, 2, 2.5, 3, 3.5, 4+)
+
+Utility: Key spec
+Usage: Filtering (range facet), Metadata display ("2.5 BA")
+location_type (values: urban, suburban, rural)
+
+Utility: Lifestyle matching
+Usage: Filtering (facet), Boosting based on query intent
+neighborhood (e.g., "Mission District", "Pacific Heights", "SOMA")
+
+Utility: Hyper-local filtering
+Usage: Filtering (facet with many values), Breadcrumb (City > Neighborhood), Display
+city (e.g., "San Francisco", "Oakland", "Berkeley")
+
+Utility: Geographic grouping
+Usage: Filtering (facet), Breadcrumb, Search matching
+state (e.g., "CA", "NY", "TX")
+
+Utility: Broader geographic
+Usage: Filtering, Breadcrumb (State > City > Neighborhood)
+zip_code (e.g., "94110", "94103")
+
+Utility: Precise location
+Usage: Filtering, Search matching
+Numerical Fields
+price (e.g., 750000, 1200000)
+
+Utility: Primary decision factor
+Usage: Range filtering (facet: <$500k, $500k-$750k, $750k-$1M, etc.), Sorting, Metadata display ("$750,000")
+rent (e.g., 2500, 3200) - for rentals
+
+Utility: Monthly cost
+Usage: Range filtering, Sorting, Display
+square_feet (e.g., 1200, 2400, 3500)
+
+Utility: Size measure
+Usage: Range filtering (facet), Boosting ($/sqft calculations), Metadata display ("1,200 sq ft")
+lot_size (e.g., 0.15, 0.25, 1.5) - in acres
+
+Utility: Outdoor space
+Usage: Filtering, Boosting for "yard" queries, Display
+year_built (e.g., 1920, 1985, 2018)
+
+Utility: Age/condition indicator
+Usage: Range filtering (facet: Pre-1950, 1950-1980, 1980-2000, 2000+), Boosting for "modern"/"historic" queries, Display
+walk_score (values: 0-100)
+
+Utility: Walkability metric
+Usage: Boosting for "walkable" queries, Filtering (>70 for walkable), Metadata display ("Walk Score: 92")
+days_on_market (e.g., 3, 15, 45)
+
+Utility: Market demand indicator
+Usage: Boosting (newer preferred), Filtering, Display ("New listing!")
+Boolean Fields
+has_yard (true/false)
+
+Utility: Outdoor space flag
+Usage: Filtering (facet checkbox), Boosting for "yard" queries
+has_parking (true/false)
+
+Utility: Parking availability
+Usage: Filtering (facet), Boosting, Display badge
+pets_allowed (true/false)
+
+Utility: Pet policy
+Usage: Filtering (critical facet), Boosting for pet queries, Display badge
+is_furnished (true/false)
+
+Utility: Move-in ready
+Usage: Filtering, Display
+has_pool (true/false)
+
+Utility: Amenity
+Usage: Filtering, Boosting, Display
+has_ac (true/false)
+
+Utility: Climate control
+Usage: Filtering, Boosting in hot climates
+open_house_scheduled (true/false)
+
+Utility: Viewing opportunity
+Usage: Boosting, Display badge ("Open House This Weekend")
+Multi-value/Array Fields
+amenities (values: gym, pool, doorman, laundry, storage, bike_room, rooftop, etc.)
+
+Utility: Feature matching
+Usage: Filtering (multi-select facet), Search relevance, Display (badge icons)
+parking_type (values: garage, street, carport, covered, uncovered)
+
+Utility: Parking details
+Usage: Filtering, Display
+heating_cooling (values: central_heat, central_ac, radiator, heat_pump, etc.)
+
+Utility: HVAC details
+Usage: Filtering, Search matching
+flooring (values: hardwood, carpet, tile, laminate, concrete)
+
+Utility: Finish details
+Usage: Search matching, Display
+Derived/Computed Fields
+price_per_sqft (e.g., 625, 850)
+
+Utility: Value comparison
+Usage: Sorting, Boosting (good deals), Display ("$625/sq ft")
+school_rating (values: 1-10, averaged from nearby schools)
+
+Utility: Family appeal
+Usage: Boosting for family queries, Filtering (>7 for "good schools"), Display
+park_distance (e.g., 0.1, 0.3, 0.8) - miles to nearest park
+
+Utility: Outdoor access
+Usage: Boosting for park queries, Filtering (<0.5 miles)
+transit_distance (e.g., 0.2, 0.5) - miles to transit
+
+Utility: Commute ease
+Usage: Boosting for walkable/transit queries, Display
+neighborhood_trend (values: rising, stable, declining)
+
+Utility: Investment indicator
+Usage: Boosting for "up-and-coming" queries, Display
+price_vs_market (e.g., -15, +5, -8) - percentage vs neighborhood average
+
+Utility: Deal identification
+Usage: Boosting for value queries, Display ("15% below market")
+Image/Media Fields
+images (array of URLs)
+
+Utility: Visual browsing
+Usage: Display (thumbnail in results, gallery on detail page)
+image_count (e.g., 12, 25)
+
+Utility: Listing quality indicator
+Usage: Boosting (more images = better listing), Display ("25 photos")
+has_virtual_tour (true/false)
+
+Utility: Remote viewing
+Usage: Boosting, Display badge
+Agent/Listing Metadata
+agent_name (e.g., "Sarah Johnson")
+
+Utility: Contact info
+Usage: Display
+agency (e.g., "Coldwell Banker", "Compass")
+
+Utility: Brand trust
+Usage: Display, possible boosting for verified agencies
+listing_status (values: active, pending, sold, off_market)
+
+Utility: Availability
+Usage: Filtering (usually only show active), Display badge
+views_count (e.g., 245, 1203)
+
+Utility: Popularity signal
+Usage: Boosting (popular listings), Display ("Viewed 245 times")
+saved_count (e.g., 12, 89)
+
+Utility: Interest signal
+Usage: Boosting (highly saved = desirable), Display
+Summary by Usage Type:
+Pure Filtering: property_type, bedrooms, bathrooms, city, neighborhood, pets_allowed, has_parking, amenities Filtering + Boosting: price, year_built, walk_score, school_rating, location_type Pure Boosting: listing_date, views_count, saved_count, image_count, price_vs_market Text Search: title, description, address_full Display Only: property_id, agent_name, images, transit_distance (unless also used for boosting) Multi-purpose (all four): price, square_feet, neighborhood
+
+Does this breakdown help? Which fields do you want to emphasize in the wireframe's facets and result cards?
+
+This seems good but let's simplify it considerably. I'm just using this for a demo example. So I want it to be digestible. What are the minimal fields that kind of cross over all of these types of fields and types of use cases?
+
+Perfect! Let's strip this down to the essentials that demonstrate all the key search concepts:
+
+Minimal Field Set (12 fields)
+Text Fields (for search matching & highlighting)
+title - "Charming Victorian with Bay Views"
+description - Full text for snippets with highlighting
+Categorical Facets (left sidebar filters)
+property_type - house, condo, apartment, townhouse
+bedrooms - 1, 2, 3, 4, 5+
+neighborhood - Mission District, SOMA, Pacific Heights, etc.
+Numerical Range Facets
+price - Filter by ranges, sort, display
+square_feet - Size filtering
+Boolean Facets (checkboxes)
+pets_allowed - true/false
+has_parking - true/false
+Boosting Fields (not shown as facets, but influence ranking)
+walk_score - 0-100, boosts "walkable" queries
+listing_date - Recency boost
+Display Metadata (shown in results)
+images - Thumbnail in results
+Breadcrumb: San Francisco > [neighborhood] > [property_type]
+
+This gives you:
+
+Facets: property_type, bedrooms, neighborhood, price range, square_feet range, pets_allowed, has_parking
+Text search: title + description
+Boosting: walk_score, listing_date
+Display: title (headline), description (snippet), price, bedrooms, square_feet, images (thumbnail)
+That's digestible and demonstrates filtering, text search, boosting, faceting, and result display. Sound good?
+
+Remove number five. Number eight. number 10 and then create a new set of example queries and the associated Lucene queries for example I like the family home matching to number of bedrooms is three or more that was a great idea Yeah. and I like the idea of hot to market or you know recent recently listed automatically mapping to a different boosting on listing date but can be several similar examples
+
+Perfect! Here's the simplified field set and new query examples:
+
+Simplified Field Set (9 fields)
+Text Fields
+title
+description
+Categorical Facets
+property_type - house, condo, apartment, townhouse
+bedrooms - 1, 2, 3, 4, 5+
+Numerical Range Facets
+price
+square_feet
+Boolean Facets
+has_parking
+Boosting Fields
+listing_date
+Display Metadata
+images
+Example Natural Language Queries → Lucene
+"Family home under 800k"
+
+bedrooms:[3 TO *] AND property_type:(house OR townhouse)
+AND price:[* TO 800000]
+Maps "family" → bedrooms ≥3 + house types
+"New listing downtown condo"
+
+property_type:condo AND description:downtown
+AND listing_date:[NOW-7DAYS TO NOW]^3.0
+Maps "new listing" → recent date boost
+"Spacious 2 bedroom with parking"
+
+bedrooms:2 AND square_feet:[1000 TO *]^2.0 AND has_parking:true
+Maps "spacious" → square footage boost
+"Just listed house"
+
+property_type:house AND listing_date:[NOW-3DAYS TO NOW]^5.0
+Maps "just listed" → very recent, heavy boost
+"Affordable apartment"
+
+property_type:apartment AND price:[* TO 500000]^1.5
+AND (price_rank:[1 TO 25])^2.0
+Maps "affordable" → lower price range + boost cheaper listings
+"Large home for big family"
+
+bedrooms:[4 TO *] AND square_feet:[2500 TO *]
+AND property_type:(house OR townhouse)
+Maps "large" + "big family" → 4+ beds, 2500+ sqft
+"Hot property fresh on market"
+
+listing_date:[NOW-1DAY TO NOW]^10.0
+AND _score:>50
+Maps "hot" + "fresh" → brand new listings, extreme recency boost
+"Cozy studio with parking under 400k"
+
+bedrooms:[0 TO 1] AND property_type:apartment
+AND has_parking:true AND price:[* TO 400000]
+Maps "cozy" → studio/1br, "studio" is explicit
+"Recently reduced price 3 bedroom"
+
+bedrooms:3 AND price_change_date:[NOW-14DAYS TO NOW]^3.0
+AND price_change_percent:[* TO -5]^2.0
+Maps "recently reduced" → price drop recency (note: would need price_change_date field, but demonstrates the concept)
+"Brand new construction with parking"
+
+description:("new construction" OR "newly built")^3.0
+AND listing_date:[NOW-30DAYS TO NOW]^2.0
+AND has_parking:true
+Maps "brand new construction" → description keywords + recent listing
+Which 2-3 of these should we feature in the wireframe? I'm thinking:
+
+"Family home under 800k" - shows smart bedroom mapping
+"New listing downtown condo" - shows recency boost
+"Spacious 2 bedroom with parking" - shows text interpretation to numerical boost
+What would appear in the search results page?
+
+Great question! Let's detail what appears in the search results:
+
+Search Results Page Layout
+For each property listing card:
+Visual
+
+Thumbnail image (from images field) - left side of card, ~150x150px
+Maybe a "NEW" badge overlay if listed in last 3 days
+Primary Info (headline area)
+
+Title - large, bold, clickable (e.g., "Charming Victorian with Bay Views")
+With highlighted search terms if they appear in title
+Price - prominent, right-aligned (e.g., "$750,000")
+Key Specs (icon row)
+
+Bedrooms - "3 BD"
+Square footage - "1,850 sq ft"
+Property type - "House"
+Description Snippet
+
+2-3 lines of description text with highlighted matching terms
+Truncated with "..." if needed
+Shows context around matched query terms (e.g., if searching "family home", highlights "...perfect for families..." or "...spacious home...")
+Metadata Footer
+
+Parking badge - small icon or "Parking" text if has_parking:true
+Listing date - "Listed 2 days ago" or "Listed Nov 15"
+Example Result Card:
+┌─────────────────────────────────────────────────────────┐
+│ [IMAGE]   Charming Victorian with Bay Views    $750,000 │
+│           ═══════════════════════════════════            │
+│           3 BD • 1,850 sq ft • House                     │
+│                                                          │
+│           Perfect *family* *home* in quiet neighborhood. │
+│           Recently updated kitchen, large backyard...    │
+│                                                          │
+│           🅿 Parking • Listed 2 days ago                 │
+└─────────────────────────────────────────────────────────┘
+The asterisks show highlighted terms matching the search query.
+
+"Did You Mean?" Section
+Above results: "Did you mean: family home under 800k?"
+Appears when query has typos or could be clarified
+Results Header
+"Showing 47 properties" or "Showing 10 of 47 properties"
+Sort dropdown: "Relevance", "Price: Low to High", "Price: High to Low", "Newest First"
+Does this match what you're envisioning?
+
+What are the facets in this example?
+
+Facets (Left Sidebar Filters)
+Based on our simplified 9-field set, here are the facets:
+
+Categorical Facets
+Property Type (multi-select checkboxes)
+
+☐ House (23)
+☐ Condo (15)
+☐ Apartment (8)
+☐ Townhouse (6)
+Bedrooms (multi-select checkboxes or single-select)
+
+☐ Studio (3)
+☐ 1 BR (12)
+☐ 2 BR (18)
+☐ 3 BR (14)
+☐ 4+ BR (5)
+Numerical Range Facets
+Price (range slider or predefined buckets)
+
+☐ Under $500k (8)
+☐ $500k - $750k (15)
+☐ $750k - $1M (17)
+☐ $1M - $1.5M (6)
+☐ Over $1.5M (6)
+Square Feet (range slider or buckets)
+
+☐ Under 800 (5)
+☐ 800 - 1,200 (12)
+☐ 1,200 - 1,800 (18)
+☐ 1,800 - 2,500 (10)
+☐ Over 2,500 (7)
+Boolean Facets
+Amenities (checkboxes)
+
+☐ Parking (32)
+Total: 5 facet groups
+
+The numbers in parentheses show the count of available properties matching each filter option. These update dynamically as other filters are applied.
+
+Ready to create the wireframe now?
+
+build it in html
+
+Real Estate Search Wireframe
+Interactive artifact 
+I've created the wireframe with all the key search components:
+
+Key Features:
+
+Search box at the top with the query "family home under 800k"
+Breadcrumb navigation (San Francisco > All Neighborhoods > All Property Types)
+"Did you mean?" suggestion for query refinement
+Left sidebar facets with 5 groups: Property Type, Bedrooms, Price Range, Square Feet, and Amenities
+Result cards showing:
+Property images with "NEW" badges for recent listings
+Titles with highlighted search terms
+Price prominently displayed
+Key specs (bedrooms, square feet, property type)
+Description snippets with highlighted matching terms
+Metadata footer (parking badge, listing date)
+The checked facets (House, Townhouse, 3BR, 4+BR, price ranges, sqft ranges) reflect the parsed intent from "family home under 800k". The highlighting shows how search terms are matched in both titles and descriptions.
+
+
+
+
+Perfect! Here's the simplified field set and new query examples:
+
+## Simplified Field Set (9 fields)
+
+### Text Fields
+1. **title**
+2. **description**
+
+### Categorical Facets
+3. **property_type** - house, condo, apartment, townhouse
+4. **bedrooms** - 1, 2, 3, 4, 5+
+
+### Numerical Range Facets
+5. **price**
+6. **square_feet**
+
+### Boolean Facets
+7. **has_parking**
+
+### Boosting Fields
+8. **listing_date**
+
+### Display Metadata
+9. **images**
+
+---
+
+## Example Natural Language Queries → Lucene
+
+**"Family home under 800k"**
+```
+bedrooms:[3 TO *] AND property_type:(house OR townhouse)
+AND price:[* TO 800000]
+```
+- Maps "family" → bedrooms ≥3 + house types
+
+**"New listing downtown condo"**
+```
+property_type:condo AND description:downtown
+AND listing_date:[NOW-7DAYS TO NOW]^3.0
+```
+- Maps "new listing" → recent date boost
+
+**"Spacious 2 bedroom with parking"**
+```
+bedrooms:2 AND square_feet:[1000 TO *]^2.0 AND has_parking:true
+```
+- Maps "spacious" → square footage boost
+
+**"Just listed house"**
+```
+property_type:house AND listing_date:[NOW-3DAYS TO NOW]^5.0
+```
+- Maps "just listed" → very recent, heavy boost
+
+**"Affordable apartment"**
+```
+property_type:apartment AND price:[* TO 500000]^1.5
+AND (price_rank:[1 TO 25])^2.0
+```
+- Maps "affordable" → lower price range + boost cheaper listings
+
+**"Large home for big family"**
+```
+bedrooms:[4 TO *] AND square_feet:[2500 TO *]
+AND property_type:(house OR townhouse)
+```
+- Maps "large" + "big family" → 4+ beds, 2500+ sqft
+
+**"Hot property fresh on market"**
+```
+listing_date:[NOW-1DAY TO NOW]^10.0
+AND _score:>50
+```
+- Maps "hot" + "fresh" → brand new listings, extreme recency boost
+
+**"Cozy studio with parking under 400k"**
+```
+bedrooms:[0 TO 1] AND property_type:apartment
+AND has_parking:true AND price:[* TO 400000]
+```
+- Maps "cozy" → studio/1br, "studio" is explicit
+
+**"Recently reduced price 3 bedroom"**
+```
+bedrooms:3 AND price_change_date:[NOW-14DAYS TO NOW]^3.0
+AND price_change_percent:[* TO -5]^2.0
+```
+- Maps "recently reduced" → price drop recency (note: would need price_change_date field, but demonstrates the concept)
+
+**"Brand new construction with parking"**
+```
+description:("new construction" OR "newly built")^3.0
+AND listing_date:[NOW-30DAYS TO NOW]^2.0
+AND has_parking:true
+```
+- Maps "brand new construction" → description keywords + recent listing
+
+Which 2-3 of these should we feature in the wireframe? I'm thinking:
+1. "Family home under 800k" - shows smart bedroom mapping
+2. "New listing downtown condo" - shows recency boost
+3. "Spacious 2 bedroom with parking" - shows text interpretation to numerical boost
+
+
+
+Great question! Let's detail what appears in the search results:
+
+## Search Results Page Layout
+
+### For each property listing card:
+
+**Visual**
+- **Thumbnail image** (from images field) - left side of card, ~150x150px
+- Maybe a "NEW" badge overlay if listed in last 3 days
+
+**Primary Info (headline area)**
+- **Title** - large, bold, clickable (e.g., "Charming Victorian with Bay Views")
+  - With **highlighted** search terms if they appear in title
+- **Price** - prominent, right-aligned (e.g., "$750,000")
+
+**Key Specs (icon row)**
+- **Bedrooms** - "3 BD"
+- **Square footage** - "1,850 sq ft" 
+- **Property type** - "House"
+
+**Description Snippet**
+- **2-3 lines of description text** with **highlighted matching terms**
+- Truncated with "..." if needed
+- Shows context around matched query terms (e.g., if searching "family home", highlights "...perfect for families..." or "...spacious home...")
+
+**Metadata Footer**
+- **Parking badge** - small icon or "Parking" text if has_parking:true
+- **Listing date** - "Listed 2 days ago" or "Listed Nov 15"
+
+---
+
+## Example Result Card:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ [IMAGE]   Charming Victorian with Bay Views    $750,000 │
+│           ═══════════════════════════════════            │
+│           3 BD • 1,850 sq ft • House                     │
+│                                                          │
+│           Perfect *family* *home* in quiet neighborhood. │
+│           Recently updated kitchen, large backyard...    │
+│                                                          │
+│           🅿 Parking • Listed 2 days ago                 │
+└─────────────────────────────────────────────────────────┘
+```
+
+The asterisks show **highlighted** terms matching the search query.
+
+---
+
+## "Did You Mean?" Section
+- Above results: "Did you mean: *family home under 800k*?" 
+- Appears when query has typos or could be clarified
+
+## Results Header
+- "Showing 47 properties" or "Showing 10 of 47 properties"
+- Sort dropdown: "Relevance", "Price: Low to High", "Price: High to Low", "Newest First"
+
+Does this match what you're envisioning?
+
+
+## Facets (Left Sidebar Filters)
+
+Based on our simplified 9-field set, here are the facets:
+
+### Categorical Facets
+
+**Property Type** (multi-select checkboxes)
+- ☐ House (23)
+- ☐ Condo (15)
+- ☐ Apartment (8)
+- ☐ Townhouse (6)
+
+**Bedrooms** (multi-select checkboxes or single-select)
+- ☐ Studio (3)
+- ☐ 1 BR (12)
+- ☐ 2 BR (18)
+- ☐ 3 BR (14)
+- ☐ 4+ BR (5)
+
+### Numerical Range Facets
+
+**Price** (range slider or predefined buckets)
+- ☐ Under $500k (8)
+- ☐ $500k - $750k (15)
+- ☐ $750k - $1M (17)
+- ☐ $1M - $1.5M (6)
+- ☐ Over $1.5M (6)
+
+**Square Feet** (range slider or buckets)
+- ☐ Under 800 (5)
+- ☐ 800 - 1,200 (12)
+- ☐ 1,200 - 1,800 (18)
+- ☐ 1,800 - 2,500 (10)
+- ☐ Over 2,500 (7)
+
+### Boolean Facets
+
+**Amenities** (checkboxes)
+- ☐ Parking (32)
+
+---
+
+**Total: 5 facet groups**
+
+The numbers in parentheses show the count of available properties matching each filter option. These update dynamically as other filters are applied.
+
+Ready to create the wireframe now?
+
+
+I've created the wireframe with all the key search components:
+
+**Key Features:**
+- **Search box** at the top with the query "family home under 800k"
+- **Breadcrumb** navigation (San Francisco > All Neighborhoods > All Property Types)
+- **"Did you mean?"** suggestion for query refinement
+- **Left sidebar facets** with 5 groups: Property Type, Bedrooms, Price Range, Square Feet, and Amenities
+- **Result cards** showing:
+  - Property images with "NEW" badges for recent listings
+  - Titles with **highlighted** search terms
+  - Price prominently displayed
+  - Key specs (bedrooms, square feet, property type)
+  - Description snippets with **highlighted** matching terms
+  - Metadata footer (parking badge, listing date)
+
+The checked facets (House, Townhouse, 3BR, 4+BR, price ranges, sqft ranges) reflect the parsed intent from "family home under 800k". The highlighting shows how search terms are matched in both titles and descriptions.

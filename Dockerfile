@@ -1,0 +1,61 @@
+# Multi-stage build for Next.js frontend and FastAPI backend
+
+# Stage 1: Build Next.js frontend
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+# Create public directory if it doesn't exist (Next.js may not create it)
+RUN mkdir -p public
+RUN npm run build
+
+# Stage 2: Python backend with UV
+FROM python:3.12-slim AS backend-setup
+WORKDIR /app/backend
+
+# Install UV
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Copy backend files
+COPY backend/pyproject.toml backend/requirements.txt ./
+RUN uv venv && uv pip install -r requirements.txt
+
+# Copy backend source files
+COPY backend/*.py ./
+
+# Stage 3: Runtime
+FROM python:3.12-slim
+WORKDIR /app
+
+# Install UV
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Install Node.js for running Next.js
+RUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists/*
+
+# Copy backend virtual environment
+COPY --from=backend-setup /app/backend/.venv /app/backend/.venv
+# Copy all backend Python files
+COPY backend/*.py /app/backend/
+
+# Copy frontend standalone build
+COPY --from=frontend-builder /app/frontend/.next/standalone /app/frontend/
+COPY --from=frontend-builder /app/frontend/.next/static /app/frontend/.next/static
+# Copy public directory (created in build stage if it didn't exist)
+COPY --from=frontend-builder /app/frontend/public /app/frontend/public
+
+# Copy production startup script
+COPY scripts/start_prod.sh /app/start_prod.sh
+RUN chmod +x /app/start_prod.sh
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV BACKEND_URL=http://localhost:8000
+ENV ALLOWED_ORIGINS=http://localhost:3000
+
+EXPOSE 3000 8000
+
+CMD ["/app/start_prod.sh"]
+
