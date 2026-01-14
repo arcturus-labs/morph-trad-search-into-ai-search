@@ -7,7 +7,7 @@ import FacetsSidebar from '@/components/FacetsSidebar'
 import ResultsHeader from '@/components/ResultsHeader'
 import PropertyCard from '@/components/PropertyCard'
 import DemoTools from '@/components/DemoTools'
-import { searchPropertiesIntermediateAI, SearchResponse, Facets, InterpretedQuery } from '@/lib/api'
+import { searchPropertiesIntermediateAI, getSearchSummaryIntermediateAI, SearchResponse, Facets, InterpretedQuery, SearchSummary } from '@/lib/api'
 import { EXAMPLE_QUERIES } from '@/lib/constants'
 import { toTitleCase } from '@/lib/searchUtils'
 import { useParsedSearchParams } from '@/lib/useSearchParams'
@@ -21,6 +21,8 @@ function SearchPage() {
   const [facets, setFacets] = useState<Facets | null>(null)
   const [interpretedQuery, setInterpretedQuery] = useState<InterpretedQuery | null>(null)
   const [originalQuery, setOriginalQuery] = useState<string | null>(null)
+  const [summary, setSummary] = useState<SearchSummary | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showExampleQueries, setShowExampleQueries] = useState(false)
@@ -75,6 +77,7 @@ function SearchPage() {
     setLoading(true)
     setError(null)
     setInterpretedQuery(null)
+    setSummary(null)
     
     // Store the original query for display
     if (qParam) {
@@ -122,6 +125,37 @@ function SearchPage() {
       setError(null)
       setLoading(false)
       console.log('✅ State updated with search results')
+      
+      // Fetch search summary after results are loaded
+      if (searchResults.results.length > 0) {
+        setSummaryLoading(true)
+        try {
+          const summaryParams = {
+            q: qParam || undefined,
+            title: titleParam || undefined,
+            description: descriptionParam || undefined,
+            property_type: selectedPropertyTypes.length > 0 ? selectedPropertyTypes : undefined,
+            bedrooms: selectedBedrooms.length > 0 ? selectedBedrooms : undefined,
+            min_price: minPrice,
+            max_price: maxPrice,
+            min_sqft: minSqft,
+            max_sqft: maxSqft,
+            total: searchResults.total,
+          }
+          console.log('📡 Fetching search summary with params:', summaryParams)
+          const summaryData = await getSearchSummaryIntermediateAI(summaryParams)
+          console.log('✅ Summary received:', summaryData)
+          setSummary(summaryData)
+        } catch (error) {
+          console.error('❌ Error fetching summary:', error)
+          // Don't set error state - summary is optional
+          setSummary(null)
+        } finally {
+          setSummaryLoading(false)
+        }
+      } else {
+        setSummary(null)
+      }
       
       // Update URL with interpreted parameters (without page reload)
       if (searchResults.interpreted_query) {
@@ -177,6 +211,7 @@ function SearchPage() {
       console.error('Error details:', error instanceof Error ? error.message : String(error))
       setError('Failed to load properties. Please check that the backend server is running.')
       setSearchResults(null)
+      setSummary(null)
       setLoading(false)
       console.log('🏁 Search complete (with error), loading set to false')
       console.log('='.repeat(60))
@@ -545,7 +580,82 @@ function SearchPage() {
                   fontSize: '14px',
                   lineHeight: '1.6'
                 }}>
-                  This is a summary of the search results. Based on your query, we found {searchResults.total} properties matching your criteria. The results include a variety of property types and price ranges that align with your search preferences.
+                  {summaryLoading ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{
+                        width: '16px',
+                        height: '16px',
+                        border: '2px solid #3498db',
+                        borderTopColor: 'transparent',
+                        borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite'
+                      }} />
+                      <span>Generating search summary...</span>
+                    </div>
+                  ) : summary ? (
+                    <>
+                      <div style={{ marginBottom: summary.search_ideas && summary.search_ideas.length > 0 ? '12px' : '0' }}>
+                        {summary.summary}
+                      </div>
+                      {summary.search_ideas && summary.search_ideas.length > 0 && (
+                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #dee2e6' }}>
+                          <div style={{ marginBottom: '8px', fontWeight: '600', fontSize: '13px', color: '#495057' }}>
+                            Related searches:
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                            {summary.search_ideas.map((idea, index) => (
+                              <button
+                                key={index}
+                                onClick={() => {
+                                  const qValue = idea.toLowerCase().trim()
+                                  const titleValue = toTitleCase(idea.trim())
+                                  const descriptionValue = idea.toLowerCase().trim()
+                                  updateURL({ 
+                                    q: qValue,
+                                    title: titleValue,
+                                    description: descriptionValue,
+                                    page: '1',
+                                    property_type: null,
+                                    bedrooms: null,
+                                    min_price: null,
+                                    max_price: null,
+                                    min_sqft: null,
+                                    max_sqft: null,
+                                    sort: null
+                                  })
+                                }}
+                                style={{
+                                  backgroundColor: '#e9ecef',
+                                  border: '1px solid #ced4da',
+                                  borderRadius: '16px',
+                                  padding: '6px 12px',
+                                  fontSize: '13px',
+                                  color: '#495057',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                  fontWeight: '500'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#dee2e6'
+                                  e.currentTarget.style.borderColor = '#adb5bd'
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#e9ecef'
+                                  e.currentTarget.style.borderColor = '#ced4da'
+                                }}
+                              >
+                                {idea}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div>
+                      Based on your query, we found {searchResults.total} properties matching your criteria.
+                    </div>
+                  )}
                 </div>
               )}
               <div className="results-list">
