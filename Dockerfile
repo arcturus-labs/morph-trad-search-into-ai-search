@@ -34,10 +34,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Install Node.js for running Next.js
 RUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists/*
 
-# Copy backend virtual environment
-COPY --from=backend-setup /app/backend/.venv /app/backend/.venv
-# Copy all backend files (including subdirectories)
-COPY backend/ /app/backend/
+# Copy backend virtual environment and all source files from backend-setup stage
+COPY --from=backend-setup /app/backend/ /app/backend/
 
 # Copy frontend standalone build
 COPY --from=frontend-builder /app/frontend/.next/standalone /app/frontend/
