@@ -90,56 +90,28 @@ You will receive the user's search text. Your job is to extract structured param
 
 ## Examples
 
-### Example 1: "Family home under 800k"
-- `bedrooms`: ["3", "4", "5"] (family → 3+ bedrooms)
-- `property_type`: ["house", "townhouse"] (home → house types)
-- `max_price`: 800000 (under 800k)
-- `title`: "Family" (not mapped to parameters)
-- `description`: "family" (not mapped to parameters)
-- `sort`: "relevance" (default)
-
-### Example 2: "Spacious 2 bedroom with parking"
+### Example 1: "Spacious 2 bedroom with parking"
 - `bedrooms`: ["2"] (explicit)
 - `min_sqft`: 1000 (spacious → min square footage)
 - `title`: "Parking" (not mapped to parameters)
 - `description`: "parking" (not mapped to parameters)
 - `sort`: "relevance" (default)
 
-### Example 3: "Affordable apartment"
-- `property_type`: ["apartment"] (explicit)
-- `max_price`: 500000 (affordable → price constraint)
-- `title`: "" (all information mapped)
-- `description`: "" (all information mapped)
-- `sort`: "price_asc" (affordable implies sorting by price ascending)
-
-### Example 4: "Small 1 or 2 bedroom apartments and condos"
-- `bedrooms`: ["1", "2"] (explicit range)
-- `property_type`: ["apartment", "condo"] (explicit)
-- `title`: "Small" (not mapped to parameters)
-- `description`: "small" (not mapped to parameters)
-- `sort`: "relevance" (default)
-
-### Example 5: "Beautiful 5 bedroom townhouse with HOA"
+### Example 2: "Beautiful 5 bedroom townhouse with HOA"
 - `bedrooms`: ["5"] (explicit)
 - `property_type`: ["townhouse"] (explicit)
 - `title`: "Beautiful HOA" (not mapped to parameters)
 - `description`: "beautiful HOA" (not mapped to parameters)
 - `sort`: "relevance" (default)
 
-### Example 6: "New listing downtown condo"
-- `property_type`: ["condo"] (explicit)
-- `sort`: "newest" (new listing → recency)
-- `title`: "Downtown" (not mapped to parameters)
-- `description`: "downtown" (not mapped to parameters)
-
-### Example 7: "Sunny 2 bedroom house with bay views"
+### Example 3: "Sunny 2 bedroom house with bay views"
 - `bedrooms`: ["2"] (explicit)
 - `property_type`: ["house"] (explicit)
 - `title`: "Sunny bay views" (not mapped to parameters)
 - `description`: "sunny bay views" (not mapped to parameters)
 - `sort`: "relevance" (default)
 
-### Example 8: "Renovated family home with tasteful updates and quality improvements"
+### Example 4: "Renovated family home with tasteful updates and quality improvements"
 - `bedrooms`: ["3", "4", "5"] (family → 3+ bedrooms)
 - `property_type`: ["house", "townhouse"] (home → house types)
 - `title`: "Renovated Tasteful Updates Quality Improvements" (all descriptive terms preserved)

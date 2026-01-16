@@ -12,6 +12,7 @@ import { EXAMPLE_QUERIES } from '@/lib/constants'
 import { toTitleCase } from '@/lib/searchUtils'
 import { useParsedSearchParams } from '@/lib/useSearchParams'
 import { useFacetHandlers } from '@/lib/useFacetHandlers'
+import styles from './intermediate_ai.module.css'
 
 function SearchPage() {
   const searchParams = useSearchParams()
@@ -596,37 +597,15 @@ function SearchPage() {
         </header>
 
       {/* Status div - shows spinner when loading, interpreted query when available */}
-      <div className="query-breadcrumb" style={{ 
-        backgroundColor: '#e8f4f8', 
-        padding: '15px 30px',
-        borderBottom: '1px solid #3498db',
-        minHeight: '54px'
-      }}>
+      <div className="query-breadcrumb">
         {loading ? (
           // Show spinner when loading
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            width: '100%'
-          }}>
-            <div style={{
-              width: '20px',
-              height: '20px',
-              border: '3px solid #3498db',
-              borderTopColor: 'transparent',
-              borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite'
-            }} />
-            <style>{`
-              @keyframes spin {
-                to { transform: rotate(360deg); }
-              }
-            `}</style>
+          <div className={styles.loadingSpinnerContainer}>
+            <div className={styles.spinner} />
           </div>
         ) : interpretedQuery && originalQuery ? (
           // Show interpreted query when available
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div className={styles.interpretedQueryContainer}>
             <span className="query-breadcrumb-question">
               Interpreted "{originalQuery}" as:
             </span>
@@ -641,7 +620,7 @@ function SearchPage() {
           </div>
         ) : (
           // Empty state - just blue background with height
-          <div style={{ minHeight: '6px' }} />
+          <div className={styles.queryBreadcrumbEmpty} />
         )}
       </div>
 
@@ -662,13 +641,13 @@ function SearchPage() {
 
         <main className="results">
           {loading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#7f8c8d' }}>
+            <div className={styles.loadingMessage}>
               Loading properties...
             </div>
           ) : error ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#e74c3c' }}>
+            <div className={styles.errorMessage}>
               <p>{error}</p>
-              <p style={{ marginTop: '10px', fontSize: '14px', color: '#7f8c8d' }}>
+              <p className={styles.errorSubtext}>
                 Make sure the backend is running at http://localhost:8000
               </p>
             </div>
@@ -681,16 +660,7 @@ function SearchPage() {
                 onSortChange={handleSortChange}
               />
               {searchResults.results.length > 0 && (
-                <div className="results-summary" style={{
-                  backgroundColor: '#f8f9fa',
-                  padding: '16px 20px',
-                  marginBottom: '20px',
-                  borderRadius: '8px',
-                  border: '1px solid #dee2e6',
-                  color: '#2c3e50',
-                  fontSize: '14px',
-                  lineHeight: '1.6'
-                }}>
+                <div className={`results-summary ${styles.resultsSummary}`}>
                   {(() => {
                     // Check if there's a query (text or filters) - match the logic used for fetching summary
                     const hasTextQuery = qParam || titleParam || descriptionParam
@@ -711,49 +681,44 @@ function SearchPage() {
                     }
                     if (summaryLoading) {
                       return (
-                        <>
-                          <style>{`
-                            @keyframes spin {
-                              to { transform: rotate(360deg); }
-                            }
-                          `}</style>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{
-                              width: '16px',
-                              height: '16px',
-                              border: '2px solid #3498db',
-                              borderTopColor: 'transparent',
-                              borderRadius: '50%',
-                              animation: 'spin 0.8s linear infinite'
-                            }} />
-                            <span>Generating search summary...</span>
-                          </div>
-                        </>
+                        <div className={styles.summaryLoading}>
+                          <div className={styles.spinnerSmall} />
+                          <span>Generating search summary...</span>
+                        </div>
                       )
                     }
                     if (summary) {
                       return (
                         <>
-                          <div style={{ marginBottom: summary.search_ideas && summary.search_ideas.length > 0 ? '12px' : '0' }}>
+                          <div className={summary.search_ideas && summary.search_ideas.length > 0 ? styles.summaryContent : styles.summaryContentNoIdeas}>
                             {summary.summary}
                           </div>
                           {summary.search_ideas && summary.search_ideas.length > 0 && (
-                            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #dee2e6' }}>
-                              <div style={{ marginBottom: '8px', fontWeight: '600', fontSize: '13px', color: '#495057' }}>
+                            <div className={styles.relatedSearches}>
+                              <div className={styles.relatedSearchesTitle}>
                                 Related searches:
                               </div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                              <div className={styles.relatedSearchesList}>
                                 {summary.search_ideas.map((idea, index) => (
                                   <button
                                     key={index}
                                     onClick={() => {
+                                      // Clear interpreted query and original query when clicking related search
+                                      setInterpretedQuery(null)
+                                      setOriginalQuery(null)
+                                      
+                                      // Set flags to trigger interpretation (same as search button click)
+                                      pendingQueryRef.current = idea.trim()
+                                      isHandlingSearchClick.current = true
+                                      
                                       const qValue = idea.toLowerCase().trim()
-                                      const titleValue = toTitleCase(idea.trim())
-                                      const descriptionValue = idea.toLowerCase().trim()
+                                      
+                                      // Clear title/description so backend knows this is a fresh query that needs interpretation
+                                      // Clear all facet filters when submitting a new query
                                       updateURL({ 
                                         q: qValue,
-                                        title: titleValue,
-                                        description: descriptionValue,
+                                        title: null,  // Clear so backend interprets fresh query
+                                        description: null,  // Clear so backend interprets fresh query
                                         property_type: null,
                                         bedrooms: null,
                                         min_price: null,
@@ -762,26 +727,11 @@ function SearchPage() {
                                         max_sqft: null,
                                         sort: null
                                       })
+                                      
+                                      // Trigger search directly (useEffect will be skipped due to isHandlingSearchClick flag)
+                                      performSearch()
                                     }}
-                                    style={{
-                                      backgroundColor: '#e9ecef',
-                                      border: '1px solid #ced4da',
-                                      borderRadius: '16px',
-                                      padding: '6px 12px',
-                                      fontSize: '13px',
-                                      color: '#495057',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s',
-                                      fontWeight: '500'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#dee2e6'
-                                      e.currentTarget.style.borderColor = '#adb5bd'
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#e9ecef'
-                                      e.currentTarget.style.borderColor = '#ced4da'
-                                    }}
+                                    className={styles.relatedSearchButton}
                                   >
                                     {idea}
                                   </button>
@@ -802,7 +752,7 @@ function SearchPage() {
               )}
               <div className="results-list">
                 {searchResults.results.length === 0 ? (
-                  <div style={{ padding: '40px', textAlign: 'center', color: '#7f8c8d' }}>
+                  <div className={styles.emptyStateMessage}>
                     No properties found. Try adjusting your search or filters.
                   </div>
                 ) : (
@@ -813,7 +763,7 @@ function SearchPage() {
               </div>
             </>
           ) : (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#7f8c8d' }}>
+            <div className={styles.emptyStateMessage}>
               Enter a search query or use the filters to find properties.
             </div>
           )}

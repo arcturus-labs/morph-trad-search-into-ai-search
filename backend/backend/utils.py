@@ -92,6 +92,9 @@ class QueryParameters(BaseModel):
     @classmethod
     def validate_sort(cls, v):
         """Validate sort value."""
+        # Convert None to default value "relevance" since LLM may explicitly return null
+        if v is None:
+            return "relevance"
         valid_sorts = {'relevance', 'price_asc', 'price_desc', 'newest'}
         if v not in valid_sorts:
             raise ValueError(f"Invalid sort value: {v}. Must be one of {valid_sorts}")
@@ -134,6 +137,68 @@ class QueryParameters(BaseModel):
             params['sort'] = self.sort
         
         return params
+    
+    def to_search_request_params(
+        self, 
+        q: Optional[str] = None,
+        merge_with: Optional['SearchRequestParams'] = None
+    ) -> 'SearchRequestParams':
+        """Convert to SearchRequestParams, optionally merging with existing params.
+        
+        Interpreted parameters take precedence over merged params.
+        
+        Args:
+            q: Optional raw query string to include
+            merge_with: Optional existing SearchRequestParams to merge with
+        
+        Returns:
+            SearchRequestParams with converted values
+        """
+        # Start with merged params if provided, otherwise create new
+        if merge_with:
+            search_params = SearchRequestParams(**merge_with.model_dump())
+        else:
+            search_params = SearchRequestParams()
+        
+        # Set q if provided
+        if q is not None:
+            search_params.q = q
+        
+        # Update with interpreted parameters (interpreted params take precedence)
+        # Title/Description handling (similar to intermediate router)
+        if self.title:
+            search_params.title = self.title
+        elif self.description:
+            search_params.title = self.description
+        
+        if self.description:
+            search_params.description = self.description
+        elif self.title:
+            search_params.description = self.title.lower()
+        
+        # Structured fields - convert lists to comma-separated strings
+        if self.property_type:
+            search_params.property_type = ",".join(self.property_type)
+        
+        if self.bedrooms:
+            search_params.bedrooms = ",".join(self.bedrooms)
+        
+        if self.min_price is not None:
+            search_params.min_price = self.min_price
+        
+        if self.max_price is not None:
+            search_params.max_price = self.max_price
+        
+        if self.min_sqft is not None:
+            search_params.min_sqft = self.min_sqft
+        
+        if self.max_sqft is not None:
+            search_params.max_sqft = self.max_sqft
+        
+        if self.sort:
+            search_params.sort = self.sort
+        
+        return search_params
 
 
 class SearchRequestParams(BaseModel):

@@ -155,67 +155,79 @@ function SearchPage() {
       console.log('✅ State updated with search results')
       
       // Automatically send search context to backend chat endpoint
-      // This happens in the background and doesn't block the UI
-      // Empty message indicates this is a system update with search results
-      try {
-        const chatResponse = await sendChatMessage('', {
-          searchParams: requestParams,
-          searchResults: searchResults
-        })
-        console.log('✅ Search context sent to backend chat endpoint')
-        
-        // Add assistant's response to chat history
-        if (chatResponse?.message) {
-          const assistantMessage = {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant' as const,
-            content: chatResponse.message,
-            timestamp: new Date()
-          }
-          setChatHistory(prev => [...prev, assistantMessage])
+      // Only do this if there's an existing session_id (i.e., user is in a chat session)
+      // This prevents creating new sessions when users manually update facets
+      const sessionId = searchParams.get('session_id')
+      if (sessionId) {
+        try {
+          const chatResponse = await sendChatMessage('', {
+            sessionId: sessionId,
+            searchParams: requestParams,
+            searchResults: searchResults
+          })
+          console.log('✅ Search context sent to backend chat endpoint')
           
-          // If the response includes search_params, update the URL to trigger a new search
-          if (chatResponse.search_params) {
-            console.log('🔄 Chat response includes search params, updating URL:', chatResponse.search_params)
-            const updates: Record<string, string | null> = {}
-            
-            if (chatResponse.search_params.q !== undefined) {
-              updates.q = chatResponse.search_params.q || null
-            }
-            if (chatResponse.search_params.title !== undefined) {
-              updates.title = chatResponse.search_params.title || null
-            }
-            if (chatResponse.search_params.description !== undefined) {
-              updates.description = chatResponse.search_params.description || null
-            }
-            if (chatResponse.search_params.property_type !== undefined) {
-              updates.property_type = chatResponse.search_params.property_type || null
-            }
-            if (chatResponse.search_params.bedrooms !== undefined) {
-              updates.bedrooms = chatResponse.search_params.bedrooms || null
-            }
-            if (chatResponse.search_params.min_price !== undefined) {
-              updates.min_price = chatResponse.search_params.min_price?.toString() || null
-            }
-            if (chatResponse.search_params.max_price !== undefined) {
-              updates.max_price = chatResponse.search_params.max_price?.toString() || null
-            }
-            if (chatResponse.search_params.min_sqft !== undefined) {
-              updates.min_sqft = chatResponse.search_params.min_sqft?.toString() || null
-            }
-            if (chatResponse.search_params.max_sqft !== undefined) {
-              updates.max_sqft = chatResponse.search_params.max_sqft?.toString() || null
-            }
-            if (chatResponse.search_params.sort !== undefined) {
-              updates.sort = chatResponse.search_params.sort || null
-            }
-            
-            updateURL(updates)
+          // Update session_id in URL if we got a new one
+          if (chatResponse.session_id && chatResponse.session_id !== sessionId) {
+            console.log('🔄 Updating session_id in URL:', chatResponse.session_id)
+            updateURL({ session_id: chatResponse.session_id })
           }
+          
+          // Add assistant's response to chat history
+          if (chatResponse?.message) {
+            const assistantMessage = {
+              id: `assistant-${Date.now()}`,
+              role: 'assistant' as const,
+              content: chatResponse.message,
+              timestamp: new Date()
+            }
+            setChatHistory(prev => [...prev, assistantMessage])
+            
+            // If the response includes search_params, update the URL to trigger a new search
+            if (chatResponse.search_params) {
+              console.log('🔄 Chat response includes search params, updating URL:', chatResponse.search_params)
+              const updates: Record<string, string | null> = {}
+              
+              if (chatResponse.search_params.q !== undefined) {
+                updates.q = chatResponse.search_params.q || null
+              }
+              if (chatResponse.search_params.title !== undefined) {
+                updates.title = chatResponse.search_params.title || null
+              }
+              if (chatResponse.search_params.description !== undefined) {
+                updates.description = chatResponse.search_params.description || null
+              }
+              if (chatResponse.search_params.property_type !== undefined) {
+                updates.property_type = chatResponse.search_params.property_type || null
+              }
+              if (chatResponse.search_params.bedrooms !== undefined) {
+                updates.bedrooms = chatResponse.search_params.bedrooms || null
+              }
+              if (chatResponse.search_params.min_price !== undefined) {
+                updates.min_price = chatResponse.search_params.min_price?.toString() || null
+              }
+              if (chatResponse.search_params.max_price !== undefined) {
+                updates.max_price = chatResponse.search_params.max_price?.toString() || null
+              }
+              if (chatResponse.search_params.min_sqft !== undefined) {
+                updates.min_sqft = chatResponse.search_params.min_sqft?.toString() || null
+              }
+              if (chatResponse.search_params.max_sqft !== undefined) {
+                updates.max_sqft = chatResponse.search_params.max_sqft?.toString() || null
+              }
+              if (chatResponse.search_params.sort !== undefined) {
+                updates.sort = chatResponse.search_params.sort || null
+              }
+              
+              updateURL(updates)
+            }
+          }
+        } catch (error) {
+          // Silently fail - this is a background operation
+          console.warn('⚠️ Failed to send search context to backend:', error)
         }
-      } catch (error) {
-        // Silently fail - this is a background operation
-        console.warn('⚠️ Failed to send search context to backend:', error)
+      } else {
+        console.log('⏭️ Skipping chat update - no session_id in URL (user manually updated facets)')
       }
       
       // Only update interpreted query for new queries
@@ -467,6 +479,9 @@ function SearchPage() {
     const message = chatInput.trim()
     if (!message || chatLoading) return
     
+    // Get session_id from URL
+    const sessionId = searchParams.get('session_id')
+    
     // Add user message to chat history
     const userMessage = {
       id: `user-${Date.now()}`,
@@ -479,8 +494,32 @@ function SearchPage() {
     setChatLoading(true)
     
     try {
-      // Call chat API
-      const response = await sendChatMessage(message)
+      // Build search params from current URL params
+      const currentSearchParams: any = {
+        q: qParam || undefined,
+        title: titleParam || undefined,
+        description: descriptionParam || undefined,
+        property_type: selectedPropertyTypes.length > 0 ? selectedPropertyTypes : undefined,
+        bedrooms: selectedBedrooms.length > 0 ? selectedBedrooms : undefined,
+        min_price: minPrice,
+        max_price: maxPrice,
+        min_sqft: minSqft,
+        max_sqft: maxSqft,
+        sort,
+      }
+      
+      // Call chat API with session_id and current search context
+      const response = await sendChatMessage(message, { 
+        sessionId: sessionId,
+        searchParams: currentSearchParams,
+        searchResults: searchResults || undefined
+      })
+      
+      // Update session_id in URL if we got a new one
+      if (response.session_id && response.session_id !== sessionId) {
+        console.log('🔄 Updating session_id in URL:', response.session_id)
+        updateURL({ session_id: response.session_id })
+      }
       
       // Add assistant response to chat history
       const assistantMessage = {

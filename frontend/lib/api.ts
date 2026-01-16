@@ -229,6 +229,7 @@ export async function getSearchSummaryIntermediateAI(params: SearchParams & { to
 
 export interface ChatResponse {
   message: string;
+  session_id: string;
   search_params?: {
     q?: string;
     title?: string;
@@ -245,23 +246,28 @@ export interface ChatResponse {
 
 export interface ChatRequestOptions {
   message: string;
+  sessionId?: string | null;
   searchParams?: SearchParams;
   searchResults?: SearchResponse;
 }
 
 export async function sendChatMessage(
   message: string,
-  options?: { searchParams?: SearchParams; searchResults?: SearchResponse }
+  options?: { sessionId?: string | null; searchParams?: SearchParams; searchResults?: SearchResponse }
 ): Promise<ChatResponse> {
   console.log('📡 API: sendChatMessage() called')
   console.log('  API_BASE_URL:', API_BASE_URL)
   console.log('  Message:', message)
+  console.log('  Session ID:', options?.sessionId ?? 'null (new session)')
   
   const url = `${API_BASE_URL}/advanced_ai/chat`;
   console.log('  POST URL:', url);
   
-  // Build request body with optional search context
+  // Build request body with optional search context and session_id
   const requestBody: any = { message };
+  
+  // Include session_id (null means create new session)
+  requestBody.session_id = options?.sessionId ?? null;
   
   if (options?.searchResults) {
     requestBody.search_results = options.searchResults.results;
@@ -311,6 +317,7 @@ export async function sendChatMessage(
     
     const data = await response.json();
     console.log('  ✅ Chat response received:', data);
+    console.log('  Session ID in response:', data.session_id);
     return data;
   } catch (error) {
     console.error('  ❌ Fetch error:', error);

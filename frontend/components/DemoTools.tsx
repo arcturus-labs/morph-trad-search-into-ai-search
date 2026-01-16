@@ -26,7 +26,7 @@ export default function DemoTools({
   const filteredParams = params.filter(([key]) => key !== 'page' && key !== 'q');
   
   const handleClearPage = () => {
-    router.push(pathname)
+    window.location.replace(pathname)
   }
 
   return (

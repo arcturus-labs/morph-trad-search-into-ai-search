@@ -1,0 +1,131 @@
+/* Intermediate AI Page Styles - Scoped to avoid conflicts */
+
+/* Loading Spinner */
+.loadingSpinnerContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #3498db;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.spinnerSmall {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #3498db;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.interpretedQueryContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.queryBreadcrumbEmpty {
+  min-height: 6px;
+}
+
+/* Loading/Error States */
+.loadingMessage {
+  padding: 40px;
+  text-align: center;
+  color: #7f8c8d;
+}
+
+.errorMessage {
+  padding: 40px;
+  text-align: center;
+  color: #e74c3c;
+}
+
+.errorSubtext {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #7f8c8d;
+}
+
+.emptyStateMessage {
+  padding: 40px;
+  text-align: center;
+  color: #7f8c8d;
+}
+
+/* Results Summary */
+.resultsSummary {
+  background-color: #f8f9fa;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+  color: #2c3e50;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.summaryLoading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summaryContent {
+  margin-bottom: 12px;
+}
+
+.summaryContentNoIdeas {
+  margin-bottom: 0;
+}
+
+.relatedSearches {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #dee2e6;
+}
+
+.relatedSearchesTitle {
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #495057;
+}
+
+.relatedSearchesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.relatedSearchButton {
+  background-color: #e9ecef;
+  border: 1px solid #ced4da;
+  border-radius: 16px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #495057;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.relatedSearchButton:hover {
+  background-color: #dee2e6;
+  border-color: #adb5bd;
+}
