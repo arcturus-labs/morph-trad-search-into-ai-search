@@ -1,6 +1,6 @@
 import logging
-from fastapi import APIRouter, Query, Body
-from typing import Optional, List, Dict, Any
+from fastapi import APIRouter, Query
+from typing import Optional, List, Dict, Any, Annotated
 from backend.query_interpreter import interpret_user_query
 from backend.mock_data import MOCK_PROPERTIES
 from backend.utils import (
@@ -8,6 +8,10 @@ from backend.utils import (
     filter_properties,
     sort_properties,
     calculate_facets_excluding_filter,
+    SearchRequestParams,
+    SearchResponse,
+    Facets,
+    SummaryRequest,
 )
 from intermediate.logic import generate_search_summary
 
@@ -16,41 +20,28 @@ logger = logging.getLogger(__name__)
 # Create router for intermediate_ai search API
 router = APIRouter(prefix="/api/intermediate_ai", tags=["intermediate_ai"])
 
-@router.get("/search")
-async def search(
-    q: Optional[str] = Query(None, description="User's search query (what they typed)"),
-    title: Optional[str] = Query(None, description="Search term for property title"),
-    description: Optional[str] = Query(None, description="Search term for property description"),
-    property_type: Optional[str] = Query(None, description="Comma-separated property types"),
-    bedrooms: Optional[str] = Query(None, description="Comma-separated bedroom counts"),
-    min_price: Optional[int] = Query(None),
-    max_price: Optional[int] = Query(None),
-    min_sqft: Optional[int] = Query(None),
-    max_sqft: Optional[int] = Query(None),
-    sort: Optional[str] = Query("relevance", description="Sort order: relevance, price_asc, price_desc, newest"),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=100),
-):
+@router.get("/search", response_model=SearchResponse)
+async def search(params: Annotated[SearchRequestParams, Query()]):
     """Search for properties with automatic query interpretation."""
     logger.info("=" * 60)
     logger.info("GET /api/intermediate_ai/search - Search request received")
-    logger.info(f"  Query (user input): {q}")
-    logger.info(f"  Title search: {title}")
-    logger.info(f"  Description search: {description}")
-    logger.info(f"  Property types: {property_type}")
-    logger.info(f"  Bedrooms: {bedrooms}")
-    logger.info(f"  Price range: ${min_price} - ${max_price}")
-    logger.info(f"  Square feet: {min_sqft} - {max_sqft}")
-    logger.info(f"  Sort: {sort}")
-    logger.info(f"  Page: {page}, Per page: {per_page}")
+    logger.info(f"  Query (user input): {params.q}")
+    logger.info(f"  Title search: {params.title}")
+    logger.info(f"  Description search: {params.description}")
+    logger.info(f"  Property types: {params.property_type}")
+    logger.info(f"  Bedrooms: {params.bedrooms}")
+    logger.info(f"  Price range: ${params.min_price} - ${params.max_price}")
+    logger.info(f"  Square feet: {params.min_sqft} - {params.max_sqft}")
+    logger.info(f"  Sort: {params.sort}")
     
     interpreted_query = None
     
     # If q is provided, interpret it first
-    if q:
+    # Note: Frontend routes to this endpoint only for new queries, not for facet changes
+    if params.q:
         try:
             logger.info("  Interpreting user query...")
-            interpreted_params = await interpret_user_query(q=q)
+            interpreted_params = await interpret_user_query(q=params.q)
             
             if interpreted_params:
                 interpreted_query = interpreted_params.model_dump(exclude_none=True)
@@ -60,44 +51,44 @@ async def search(
                 # Interpreted parameters take precedence for structured fields
                 # But we preserve title/description from interpretation if they exist
                 if interpreted_params.title:
-                    title = interpreted_params.title
+                    params.title = interpreted_params.title
                 elif interpreted_params.description:
-                    title = interpreted_params.description
+                    params.title = interpreted_params.description
                 
                 if interpreted_params.description:
-                    description = interpreted_params.description
+                    params.description = interpreted_params.description
                 elif interpreted_params.title:
-                    description = interpreted_params.title.lower()
+                    params.description = interpreted_params.title.lower()
                 
                 if interpreted_params.property_type:
-                    property_type = ",".join(interpreted_params.property_type)
+                    params.property_type = ",".join(interpreted_params.property_type)
                 
                 if interpreted_params.bedrooms:
-                    bedrooms = ",".join(interpreted_params.bedrooms)
+                    params.bedrooms = ",".join(interpreted_params.bedrooms)
                 
                 if interpreted_params.min_price is not None:
-                    min_price = interpreted_params.min_price
+                    params.min_price = interpreted_params.min_price
                 
                 if interpreted_params.max_price is not None:
-                    max_price = interpreted_params.max_price
+                    params.max_price = interpreted_params.max_price
                 
                 if interpreted_params.min_sqft is not None:
-                    min_sqft = interpreted_params.min_sqft
+                    params.min_sqft = interpreted_params.min_sqft
                 
                 if interpreted_params.max_sqft is not None:
-                    max_sqft = interpreted_params.max_sqft
+                    params.max_sqft = interpreted_params.max_sqft
                 
                 if interpreted_params.sort:
-                    sort = interpreted_params.sort
+                    params.sort = interpreted_params.sort
                 
                 logger.info(f"  After merging interpretation:")
-                logger.info(f"    Title: {title}")
-                logger.info(f"    Description: {description}")
-                logger.info(f"    Property types: {property_type}")
-                logger.info(f"    Bedrooms: {bedrooms}")
-                logger.info(f"    Price: ${min_price} - ${max_price}")
-                logger.info(f"    Sqft: {min_sqft} - {max_sqft}")
-                logger.info(f"    Sort: {sort}")
+                logger.info(f"    Title: {params.title}")
+                logger.info(f"    Description: {params.description}")
+                logger.info(f"    Property types: {params.property_type}")
+                logger.info(f"    Bedrooms: {params.bedrooms}")
+                logger.info(f"    Price: ${params.min_price} - ${params.max_price}")
+                logger.info(f"    Sqft: {params.min_sqft} - {params.max_sqft}")
+                logger.info(f"    Sort: {params.sort}")
             else:
                 logger.info("  Interpretation returned None (OpenAI API may not be configured)")
         except Exception as e:
@@ -105,12 +96,12 @@ async def search(
             # Continue with search even if interpretation fails
     
     # For now, if q is provided but title/description are not, use q
-    effective_title = title if title is not None else q
-    effective_description = description if description is not None else q
+    effective_title = params.title if params.title is not None else params.q
+    effective_description = params.description if params.description is not None else params.q
     
     # Parse comma-separated values
-    property_types = property_type.split(",") if property_type else None
-    bedroom_list = bedrooms.split(",") if bedrooms else None
+    property_types = params.property_type.split(",") if params.property_type else None
+    bedroom_list = params.bedrooms.split(",") if params.bedrooms else None
     
     logger.info(f"  Parsed property types: {property_types}")
     logger.info(f"  Parsed bedrooms: {bedroom_list}")
@@ -132,23 +123,21 @@ async def search(
         description=effective_description,
         property_type=property_types,
         bedrooms=bedroom_list,
-        min_price=min_price,
-        max_price=max_price,
-        min_sqft=min_sqft,
-        max_sqft=max_sqft,
+        min_price=params.min_price,
+        max_price=params.max_price,
+        min_sqft=params.min_sqft,
+        max_sqft=params.max_sqft,
     )
     logger.info(f"  After filtering: {len(filtered)} properties")
     
     # Sort
-    sorted_props = sort_properties(filtered, sort)
-    logger.info(f"  After sorting by '{sort}': {len(sorted_props)} properties")
+    sorted_props = sort_properties(filtered, params.sort)
+    logger.info(f"  After sorting by '{params.sort}': {len(sorted_props)} properties")
     
-    # Paginate
+    # Limit to 10 results (but keep total count)
     total = len(sorted_props)
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated = sorted_props[start:end]
-    logger.info(f"  Pagination: showing {len(paginated)} of {total} (page {page})")
+    limited_results = sorted_props[:10]
+    logger.info(f"  Limiting results: showing {len(limited_results)} of {total} properties")
     
     # Calculate facets from filtered results, excluding each facet group's own filter
     property_type_facets = calculate_facets_excluding_filter(
@@ -161,10 +150,10 @@ async def search(
         description=effective_description,
         property_type=property_types,
         bedrooms=bedroom_list,
-        min_price=min_price,
-        max_price=max_price,
-        min_sqft=min_sqft,
-        max_sqft=max_sqft,
+        min_price=params.min_price,
+        max_price=params.max_price,
+        min_sqft=params.min_sqft,
+        max_sqft=params.max_sqft,
     )
     
     bedrooms_facets = calculate_facets_excluding_filter(
@@ -177,13 +166,13 @@ async def search(
         description=effective_description,
         property_type=property_types,
         bedrooms=bedroom_list,
-        min_price=min_price,
-        max_price=max_price,
-        min_sqft=min_sqft,
-        max_sqft=max_sqft,
+        min_price=params.min_price,
+        max_price=params.max_price,
+        min_sqft=params.min_sqft,
+        max_sqft=params.max_sqft,
     )
     
-    has_price_filter = min_price is not None or max_price is not None
+    has_price_filter = params.min_price is not None or params.max_price is not None
     price_facets = calculate_facets_excluding_filter(
         scored_properties,
         exclude_property_type=False,
@@ -194,13 +183,13 @@ async def search(
         description=effective_description,
         property_type=property_types,
         bedrooms=bedroom_list,
-        min_price=min_price,
-        max_price=max_price,
-        min_sqft=min_sqft,
-        max_sqft=max_sqft,
+        min_price=params.min_price,
+        max_price=params.max_price,
+        min_sqft=params.min_sqft,
+        max_sqft=params.max_sqft,
     )
     
-    has_sqft_filter = min_sqft is not None or max_sqft is not None
+    has_sqft_filter = params.min_sqft is not None or params.max_sqft is not None
     sqft_facets = calculate_facets_excluding_filter(
         scored_properties,
         exclude_property_type=False,
@@ -211,10 +200,10 @@ async def search(
         description=effective_description,
         property_type=property_types,
         bedrooms=bedroom_list,
-        min_price=min_price,
-        max_price=max_price,
-        min_sqft=min_sqft,
-        max_sqft=max_sqft,
+        min_price=params.min_price,
+        max_price=params.max_price,
+        min_sqft=params.min_sqft,
+        max_sqft=params.max_sqft,
     )
     
     # Combine all facets
@@ -226,64 +215,54 @@ async def search(
     }
     logger.info(f"  Facets calculated: {len(facets)} facet groups")
     
-    logger.info(f"  Returning {len(paginated)} results")
+    logger.info(f"  Returning {len(limited_results)} of {total} results")
     logger.info("=" * 60)
     
+    # Build facets model
+    facets_model = Facets(
+        property_type=facets["property_type"],
+        bedrooms=facets["bedrooms"],
+        price_ranges=facets["price_ranges"],
+        square_feet_ranges=facets["square_feet_ranges"],
+    )
+    
     # Return search results along with interpreted query
-    result = {
-        "results": paginated,
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "facets": facets,
-    }
-    
-    # Include interpreted query in response if available
-    if interpreted_query:
-        result["interpreted_query"] = interpreted_query
-    
-    return result
+    # FastAPI will automatically serialize the Pydantic model to JSON
+    return SearchResponse(
+        results=limited_results,
+        total=total,
+        facets=facets_model,
+        interpreted_query=interpreted_query,
+    )
 
 @router.post("/summary")
-async def summary(
-    q: Optional[str] = Body(None, description="User's search query (what they typed)"),
-    title: Optional[str] = Body(None, description="Search term for property title"),
-    description: Optional[str] = Body(None, description="Search term for property description"),
-    property_type: Optional[str] = Body(None, description="Comma-separated property types"),
-    bedrooms: Optional[str] = Body(None, description="Comma-separated bedroom counts"),
-    min_price: Optional[int] = Body(None),
-    max_price: Optional[int] = Body(None),
-    min_sqft: Optional[int] = Body(None),
-    max_sqft: Optional[int] = Body(None),
-    total: Optional[int] = Body(None, description="Total number of search results"),
-    results: Optional[List[Dict[str, Any]]] = Body(None, description="Full list of search results"),
-):
+async def summary(request: SummaryRequest):
     """Generate an AI-powered summary of search results and suggest related search ideas."""
     logger.info("=" * 60)
     logger.info("POST /api/intermediate_ai/summary - Summary request received")
-    logger.info(f"  Query: {q}")
-    logger.info(f"  Title: {title}")
-    logger.info(f"  Description: {description}")
-    logger.info(f"  Property types: {property_type}")
-    logger.info(f"  Bedrooms: {bedrooms}")
-    logger.info(f"  Price range: ${min_price} - ${max_price}")
-    logger.info(f"  Square feet: {min_sqft} - {max_sqft}")
-    logger.info(f"  Total results: {total}")
-    logger.info(f"  Results provided: {len(results) if results else 0} properties")
+    logger.info(f"  Query: {request.q}")
+    logger.info(f"  Title: {request.title}")
+    logger.info(f"  Description: {request.description}")
+    logger.info(f"  Property types: {request.property_type}")
+    logger.info(f"  Bedrooms: {request.bedrooms}")
+    logger.info(f"  Price range: ${request.min_price} - ${request.max_price}")
+    logger.info(f"  Square feet: {request.min_sqft} - {request.max_sqft}")
+    logger.info(f"  Total results: {request.total}")
+    logger.info(f"  Results provided: {len(request.results) if request.results else 0} properties")
     
     try:
         summary_result = await generate_search_summary(
-            q=q,
-            title=title,
-            description=description,
-            property_type=property_type,
-            bedrooms=bedrooms,
-            min_price=min_price,
-            max_price=max_price,
-            min_sqft=min_sqft,
-            max_sqft=max_sqft,
-            total=total,
-            results=results or [],
+            q=request.q,
+            title=request.title,
+            description=request.description,
+            property_type=request.property_type,
+            bedrooms=request.bedrooms,
+            min_price=request.min_price,
+            max_price=request.max_price,
+            min_sqft=request.min_sqft,
+            max_sqft=request.max_sqft,
+            total=request.total,
+            results=request.results or [],
         )
         
         logger.info("  Summary generated successfully")

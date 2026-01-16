@@ -50,7 +50,6 @@ function SearchPage() {
     selectedPriceRanges,
     selectedSqftRanges,
     sort,
-    page,
   } = useParsedSearchParams()
   
   const {
@@ -67,12 +66,25 @@ function SearchPage() {
     console.log('🚀 performSearch() called')
     console.log('='.repeat(60))
     
-    // Use pending query if available, otherwise use URL params
-    const effectiveQuery = pendingQueryRef.current !== null ? pendingQueryRef.current : (qParam || '')
-    const effectiveTitle = pendingQueryRef.current !== null ? toTitleCase(pendingQueryRef.current.trim()) : (titleParam || undefined)
-    const effectiveDescription = pendingQueryRef.current !== null ? pendingQueryRef.current.toLowerCase().trim() : (descriptionParam || undefined)
+    // Capture the flag value at the start to avoid race conditions
+    // This tells us if search button was clicked (true) vs facets were clicked (false)
+    const wasSearchButtonClicked = isHandlingSearchClick.current
+    
+    // Only use pending query if search button was clicked
+    // Otherwise, use URL params to avoid re-interpretation when facets change
+    // This ensures that typing in search box but clicking facets doesn't trigger interpretation
+    const effectiveQuery = wasSearchButtonClicked && pendingQueryRef.current !== null 
+      ? pendingQueryRef.current 
+      : (qParam || '')
+    const effectiveTitle = wasSearchButtonClicked && pendingQueryRef.current !== null
+      ? toTitleCase(pendingQueryRef.current.trim())
+      : (titleParam || undefined)
+    const effectiveDescription = wasSearchButtonClicked && pendingQueryRef.current !== null
+      ? pendingQueryRef.current.toLowerCase().trim()
+      : (descriptionParam || undefined)
     
     console.log('📋 Current State:')
+    console.log('  Search button clicked:', wasSearchButtonClicked)
     console.log('  Pending Query:', pendingQueryRef.current)
     console.log('  Query (q):', effectiveQuery)
     console.log('  Title:', effectiveTitle)
@@ -82,25 +94,23 @@ function SearchPage() {
     console.log('  Price Range:', { min: minPrice, max: maxPrice })
     console.log('  Sqft Range:', { min: minSqft, max: maxSqft })
     console.log('  Sort:', sort)
-    console.log('  Page:', page)
     
-    // Check if query params changed (vs just facets)
-    const currentQueryParams = {
-      q: effectiveQuery || null,
-      title: effectiveTitle || null,
-      description: effectiveDescription || null,
+    // Check if this is a new query (search button clicked) vs just facet changes
+    // When search button is clicked, wasSearchButtonClicked is true
+    // When facets are clicked, wasSearchButtonClicked is false
+    const isQueryChange = wasSearchButtonClicked
+    
+    console.log('🔍 Query change detected:', isQueryChange, '(search button clicked:', isHandlingSearchClick.current, ')')
+    
+    // Update ref for next time (only if search button was clicked)
+    if (isQueryChange) {
+      const currentQueryParams = {
+        q: effectiveQuery || null,
+        title: effectiveTitle || null,
+        description: effectiveDescription || null,
+      }
+      previousQueryParams.current = currentQueryParams
     }
-    const isQueryChange = previousQueryParams.current === null || 
-      previousQueryParams.current.q !== currentQueryParams.q ||
-      previousQueryParams.current.title !== currentQueryParams.title ||
-      previousQueryParams.current.description !== currentQueryParams.description
-    
-    console.log('🔍 Query change detected:', isQueryChange)
-    console.log('  Previous:', previousQueryParams.current)
-    console.log('  Current:', currentQueryParams)
-    
-    // Update ref for next time
-    previousQueryParams.current = currentQueryParams
     
     setLoading(true)
     setError(null)
@@ -117,9 +127,12 @@ function SearchPage() {
     }
     
     try {
-      // Build search request params - use effective query values
+      // Build search request params
+      // Only send q when search button was clicked (triggers interpretation)
+      // When facets are clicked, don't send q to avoid re-interpretation
       const requestParams: any = {
-        q: effectiveQuery || undefined,
+        // Only include q if search button was clicked (not facet changes)
+        ...(wasSearchButtonClicked ? { q: effectiveQuery || undefined } : {}),
         title: effectiveTitle || undefined,
         description: effectiveDescription || undefined,
         property_type: selectedPropertyTypes.length > 0 ? selectedPropertyTypes : undefined,
@@ -129,21 +142,19 @@ function SearchPage() {
         min_sqft: minSqft,
         max_sqft: maxSqft,
         sort,
-        page,
-        per_page: 10,
       }
       
       console.log('📤 Building request params:', requestParams)
+      console.log('🔍 Search button clicked:', wasSearchButtonClicked, '- Using', wasSearchButtonClicked ? 'intermediate AI search' : 'traditional search')
       
-      // Use traditional search if only facets changed, otherwise use AI search
-      const searchResults = isQueryChange
+      // Use intermediate AI search if search button was clicked (has q param), otherwise use traditional search
+      const searchResults = wasSearchButtonClicked
         ? await searchPropertiesIntermediateAI(requestParams)
         : await searchProperties(requestParams)
       
       console.log('✅ Search successful!')
       console.log('  Total results:', searchResults.total)
       console.log('  Results returned:', searchResults.results.length)
-      console.log('  Page:', searchResults.page, 'of', Math.ceil(searchResults.total / searchResults.per_page))
       console.log('  Facets:', Object.keys(searchResults.facets))
       if (searchResults.did_you_mean) {
         console.log('  Did you mean:', searchResults.did_you_mean)
@@ -201,9 +212,6 @@ function SearchPage() {
           updates.sort = interpreted.sort && interpreted.sort !== 'relevance' 
             ? interpreted.sort 
             : null
-          
-          // Keep page number
-          updates.page = page.toString()
           
           console.log('📤 Updating URL with interpreted parameters:', updates)
           isUpdatingURLFromInterpretation.current = true
@@ -279,10 +287,15 @@ function SearchPage() {
         } else {
           setSummary(null)
         }
+        
+        // Reset search click flag after processing query change
+        isHandlingSearchClick.current = false
       }
       
-      // Reset search click flag after search completes
-      isHandlingSearchClick.current = false
+      // Reset search click flag after search completes (if it was set)
+      if (wasSearchButtonClicked) {
+        isHandlingSearchClick.current = false
+      }
     } catch (error) {
       console.error('❌ Search error:', error)
       console.error('Error details:', error instanceof Error ? error.message : String(error))
@@ -291,7 +304,9 @@ function SearchPage() {
       setSummary(null)
       setLoading(false)
       // Reset search click flag after error
-      isHandlingSearchClick.current = false
+      if (wasSearchButtonClicked) {
+        isHandlingSearchClick.current = false
+      }
       console.log('🏁 Search complete (with error), loading set to false')
       console.log('='.repeat(60))
     }
@@ -334,15 +349,17 @@ function SearchPage() {
     // Submit the search by updating URL (this will trigger performSearch via useEffect)
     if (exampleQuery.trim()) {
       const qValue = exampleQuery.toLowerCase().trim()
-      const titleValue = toTitleCase(exampleQuery.trim())
-      const descriptionValue = exampleQuery.toLowerCase().trim()
       
+      // Set flags to trigger interpretation (same as search button click)
+      pendingQueryRef.current = exampleQuery.trim()
+      isHandlingSearchClick.current = true
+      
+      // Clear title/description so backend knows this is a fresh query that needs interpretation
       // Clear all facet filters when submitting a new query
       updateURL({ 
         q: qValue,
-        title: titleValue,
-        description: descriptionValue,
-        page: '1',
+        title: null,  // Clear so backend interprets fresh query
+        description: null,  // Clear so backend interprets fresh query
         property_type: null,
         bedrooms: null,
         min_price: null,
@@ -351,6 +368,9 @@ function SearchPage() {
         max_sqft: null,
         sort: null
       })
+      
+      // Trigger search directly (useEffect will be skipped due to isHandlingSearchClick flag)
+      performSearch()
     }
   }
 
@@ -387,10 +407,13 @@ function SearchPage() {
       pendingQueryRef.current = query.trim()
       isHandlingSearchClick.current = true
       
-      // Clear facet filters by updating URL, but keep query params as-is for now
+      // Clear title/description so backend knows this is a fresh query that needs interpretation
+      // Clear facet filters as well
       // The query will be updated when interpreted query comes back
       updateURL({ 
-        page: '1',
+        q: query.trim().toLowerCase(),
+        title: null,  // Clear so backend interprets fresh query
+        description: null,  // Clear so backend interprets fresh query
         property_type: null,
         bedrooms: null,
         min_price: null,
@@ -409,7 +432,6 @@ function SearchPage() {
         q: null,
         title: null,
         description: null,
-        page: '1',
         property_type: null,
         bedrooms: null,
         min_price: null,
@@ -654,6 +676,7 @@ function SearchPage() {
             <>
               <ResultsHeader
                 total={searchResults.total}
+                displayed={searchResults.results.length}
                 sort={sort}
                 onSortChange={handleSortChange}
               />
@@ -731,7 +754,6 @@ function SearchPage() {
                                         q: qValue,
                                         title: titleValue,
                                         description: descriptionValue,
-                                        page: '1',
                                         property_type: null,
                                         bedrooms: null,
                                         min_price: null,

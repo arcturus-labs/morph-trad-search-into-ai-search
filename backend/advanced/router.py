@@ -1,7 +1,8 @@
 import logging
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional
+from backend.utils import SearchRequestParams, Facets
 
 logger = logging.getLogger(__name__)
 
@@ -11,20 +12,21 @@ router = APIRouter(prefix="/api/advanced_ai", tags=["advanced_ai"])
 class ChatRequest(BaseModel):
     """Chat request with optional search context."""
     message: str = Field(description="User's chat message")
-    search_params: Optional[Dict[str, Any]] = Field(
+    search_params: Optional[SearchRequestParams] = Field(
         default=None,
-        description="Current search parameters (q, title, description, property_type, bedrooms, min_price, max_price, min_sqft, max_sqft, sort, page, per_page)"
+        description="Current search parameters"
     )
-    search_results: Optional[List[Dict[str, Any]]] = Field(
+    search_results: Optional[list] = Field(
         default=None,
         description="List of search result properties"
     )
-    facets: Optional[Dict[str, Any]] = Field(
+    facets: Optional[Facets] = Field(
         default=None,
-        description="Facet counts for property_type, bedrooms, price_ranges, square_feet_ranges"
+        description="Facet counts for filtering options"
     )
     total: Optional[int] = Field(
         default=None,
+        ge=0,
         description="Total number of search results"
     )
 

@@ -23,9 +23,8 @@ export interface ParsedSearchParams {
   selectedPriceRanges: string[]
   selectedSqftRanges: string[]
   
-  // Sort and pagination
+  // Sort
   sort: string
-  page: number
 }
 
 export function useParsedSearchParams(): ParsedSearchParams {
@@ -39,7 +38,6 @@ export function useParsedSearchParams(): ParsedSearchParams {
   const minSqft = searchParams.get('min_sqft') ? parseInt(searchParams.get('min_sqft')!) : undefined
   const maxSqft = searchParams.get('max_sqft') ? parseInt(searchParams.get('max_sqft')!) : undefined
   const sort = searchParams.get('sort') || 'relevance'
-  const page = parseInt(searchParams.get('page') || '1')
   
   // Get search parameters from URL
   const qParam = searchParams.get('q') || ''
@@ -63,6 +61,5 @@ export function useParsedSearchParams(): ParsedSearchParams {
     selectedPriceRanges,
     selectedSqftRanges,
     sort,
-    page,
   }
 }

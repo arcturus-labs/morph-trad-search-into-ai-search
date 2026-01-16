@@ -47,7 +47,6 @@ function SearchPage() {
     selectedPriceRanges,
     selectedSqftRanges,
     sort,
-    page,
   } = useParsedSearchParams()
   
   const {
@@ -72,7 +71,6 @@ function SearchPage() {
     console.log('  Price Range:', { min: minPrice, max: maxPrice })
     console.log('  Sqft Range:', { min: minSqft, max: maxSqft })
     console.log('  Sort:', sort)
-    console.log('  Page:', page)
     
     setLoading(true)
     setError(null)
@@ -91,8 +89,6 @@ function SearchPage() {
         min_sqft: minSqft,
         max_sqft: maxSqft,
         sort,
-        page,
-        per_page: 10,
       }
       
       console.log('📤 Building request params:', requestParams)
@@ -133,7 +129,6 @@ function SearchPage() {
       console.log('✅ Search successful!')
       console.log('  Total results:', searchResults.total)
       console.log('  Results returned:', searchResults.results.length)
-      console.log('  Page:', searchResults.page, 'of', Math.ceil(searchResults.total / searchResults.per_page))
       console.log('  Facets:', Object.keys(searchResults.facets))
       if (searchResults.did_you_mean) {
         console.log('  Did you mean:', searchResults.did_you_mean)
@@ -217,7 +212,6 @@ function SearchPage() {
         q: qValue,
         title: titleValue,
         description: descriptionValue,
-        page: '1',
         property_type: null,
         bedrooms: null,
         min_price: null,
@@ -254,7 +248,6 @@ function SearchPage() {
         q: qValue,
         title: titleValue,
         description: descriptionValue,
-        page: '1',
         property_type: null,
         bedrooms: null,
         min_price: null,
@@ -269,7 +262,6 @@ function SearchPage() {
         q: null,
         title: null,
         description: null,
-        page: '1',
         property_type: null,
         bedrooms: null,
         min_price: null,
@@ -323,9 +315,6 @@ function SearchPage() {
     updates.sort = interpretedQuery.sort && interpretedQuery.sort !== 'relevance' 
       ? interpretedQuery.sort 
       : null
-    
-    // Reset page to 1 when applying new search
-    updates.page = '1'
     
     console.log('📤 Applying updates to URL:', updates)
     updateURL(updates)
@@ -435,6 +424,7 @@ function SearchPage() {
             <>
               <ResultsHeader
                 total={searchResults.total}
+                displayed={searchResults.results.length}
                 sort={sort}
                 onSortChange={handleSortChange}
               />

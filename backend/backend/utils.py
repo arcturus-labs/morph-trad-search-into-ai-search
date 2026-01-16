@@ -11,7 +11,7 @@ class QueryParameters(BaseModel):
     """Structured parameters extracted from natural language real estate queries.
     
     This model represents the parameters that an agent extracts from user queries.
-    Note: The `q` (user's exact input) and `page` parameters are handled separately
+    Note: The `q` (user's exact input) parameter is handled separately
     and are NOT included in this model.
     """
     
@@ -134,6 +134,166 @@ class QueryParameters(BaseModel):
             params['sort'] = self.sort
         
         return params
+
+
+class SearchRequestParams(BaseModel):
+    """Complete search request parameters including query string.
+    
+    This model extends QueryParameters with the user's raw query (q).
+    Used for search endpoints that accept query parameters.
+    """
+    q: Optional[str] = Field(
+        default=None,
+        description="User's raw search query (what they typed)"
+    )
+    title: Optional[str] = Field(
+        default=None,
+        description="Search term for property title"
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Search term for property description"
+    )
+    property_type: Optional[str] = Field(
+        default=None,
+        description="Comma-separated property types"
+    )
+    bedrooms: Optional[str] = Field(
+        default=None,
+        description="Comma-separated bedroom counts"
+    )
+    min_price: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Minimum price in dollars"
+    )
+    max_price: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum price in dollars"
+    )
+    min_sqft: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Minimum square footage"
+    )
+    max_sqft: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum square footage"
+    )
+    sort: Optional[str] = Field(
+        default="relevance",
+        description="Sort order. Valid values: 'relevance', 'price_asc', 'price_desc', 'newest'"
+    )
+
+
+class Facets(BaseModel):
+    """Facet counts for search results."""
+    property_type: Dict[str, int] = Field(
+        description="Count of properties by type (e.g., {'house': 5, 'condo': 3})"
+    )
+    bedrooms: Dict[str, int] = Field(
+        description="Count of properties by bedroom count (e.g., {'2': 3, '3': 5})"
+    )
+    price_ranges: Dict[str, int] = Field(
+        description="Count of properties by price range (e.g., {'0-500000': 2, '500000-750000': 4})"
+    )
+    square_feet_ranges: Dict[str, int] = Field(
+        description="Count of properties by square footage range (e.g., {'0-800': 1, '800-1200': 3})"
+    )
+
+
+class SearchResponse(BaseModel):
+    """Standard search response structure."""
+    results: List[Dict[str, Any]] = Field(
+        description="List of property results"
+    )
+    total: int = Field(
+        ge=0,
+        description="Total number of matching properties"
+    )
+    facets: Facets = Field(
+        description="Facet counts for filtering options"
+    )
+    interpreted_query: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Interpreted query parameters (from QueryParameters) if query interpretation was performed"
+    )
+
+
+class SummaryRequest(BaseModel):
+    """Request model for search summary endpoint."""
+    q: Optional[str] = Field(
+        default=None,
+        description="User's raw search query (what they typed)"
+    )
+    title: Optional[str] = Field(
+        default=None,
+        description="Search term for property title"
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Search term for property description"
+    )
+    property_type: Optional[str] = Field(
+        default=None,
+        description="Comma-separated property types"
+    )
+    bedrooms: Optional[str] = Field(
+        default=None,
+        description="Comma-separated bedroom counts"
+    )
+    min_price: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Minimum price in dollars"
+    )
+    max_price: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum price in dollars"
+    )
+    min_sqft: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Minimum square footage"
+    )
+    max_sqft: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum square footage"
+    )
+    total: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Total number of search results"
+    )
+    results: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="Full list of search result properties"
+    )
+
+
+class SearchContext(BaseModel):
+    """Search context for chat and other operations that need current search state."""
+    search_params: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Current search parameters (from SearchRequestParams)"
+    )
+    search_results: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="List of search result properties"
+    )
+    facets: Optional[Facets] = Field(
+        default=None,
+        description="Facet counts for filtering options"
+    )
+    total: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Total number of search results"
+    )
 
 
 def score_title_and_description(
@@ -370,8 +530,6 @@ async def search_properties(
     min_sqft: Optional[int] = None,
     max_sqft: Optional[int] = None,
     sort: Optional[str] = "relevance",
-    page: int = 1,
-    per_page: int = 10,
     api_path: str = "/api/search",
     logger_instance: Optional[Any] = None,
     mock_properties: Optional[List[Dict[str, Any]]] = None,
@@ -405,7 +563,6 @@ async def search_properties(
     logger_instance.info(f"  Price range: ${min_price} - ${max_price}")
     logger_instance.info(f"  Square feet: {min_sqft} - {max_sqft}")
     logger_instance.info(f"  Sort: {sort}")
-    logger_instance.info(f"  Page: {page}, Per page: {per_page}")
     
     # For now, if q is provided but title/description are not, mimic q
     # This allows backward compatibility while transitioning to separate title/description
@@ -447,12 +604,10 @@ async def search_properties(
     sorted_props = sort_properties(filtered, sort)
     logger_instance.info(f"  After sorting by '{sort}': {len(sorted_props)} properties")
     
-    # Paginate
+    # Limit to 10 results (but keep total count)
     total = len(sorted_props)
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated = sorted_props[start:end]
-    logger_instance.info(f"  Pagination: showing {len(paginated)} of {total} (page {page})")
+    limited_results = sorted_props[:10]
+    logger_instance.info(f"  Limiting results: showing {len(limited_results)} of {total} properties")
     
     # Calculate facets from filtered results, excluding each facet group's own filter
     # This allows showing all facet options even when some are selected
@@ -538,13 +693,11 @@ async def search_properties(
     }
     logger_instance.info(f"  Facets calculated: {len(facets)} facet groups")
     
-    logger_instance.info(f"  Returning {len(paginated)} results")
+    logger_instance.info(f"  Returning {len(limited_results)} of {total} results")
     logger_instance.info("=" * 60)
     
     return {
-        "results": paginated,
+        "results": limited_results,
         "total": total,
-        "page": page,
-        "per_page": per_page,
         "facets": facets,
     }

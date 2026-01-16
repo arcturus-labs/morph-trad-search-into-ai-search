@@ -33,8 +33,6 @@ export interface SearchParams {
   min_sqft?: number;
   max_sqft?: number;
   sort?: string;
-  page?: number;
-  per_page?: number;
 }
 
 export interface Facets {
@@ -47,8 +45,6 @@ export interface Facets {
 export interface SearchResponse {
   results: Property[];
   total: number;
-  page: number;
-  per_page: number;
   facets: Facets;
   did_you_mean?: string | null;
   interpreted_query?: InterpretedQuery;
@@ -71,8 +67,6 @@ export async function searchProperties(params: SearchParams): Promise<SearchResp
   if (params.min_sqft !== undefined) queryParams.append('min_sqft', params.min_sqft.toString());
   if (params.max_sqft !== undefined) queryParams.append('max_sqft', params.max_sqft.toString());
   if (params.sort) queryParams.append('sort', params.sort);
-  if (params.page) queryParams.append('page', params.page.toString());
-  if (params.per_page) queryParams.append('per_page', params.per_page.toString());
   
   const url = `${API_BASE_URL}/search?${queryParams.toString()}`;
   console.log('  Fetching URL:', url);
@@ -90,7 +84,6 @@ export async function searchProperties(params: SearchParams): Promise<SearchResp
     console.log('  ✅ Response received:', {
       total: data.total,
       resultsCount: data.results?.length || 0,
-      page: data.page,
       hasFacets: !!data.facets
     });
     return data;
@@ -163,8 +156,6 @@ export async function searchPropertiesIntermediateAI(params: SearchParams): Prom
   if (params.min_sqft !== undefined) queryParams.append('min_sqft', params.min_sqft.toString());
   if (params.max_sqft !== undefined) queryParams.append('max_sqft', params.max_sqft.toString());
   if (params.sort) queryParams.append('sort', params.sort);
-  if (params.page) queryParams.append('page', params.page.toString());
-  if (params.per_page) queryParams.append('per_page', params.per_page.toString());
   
   const url = `${API_BASE_URL}/intermediate_ai/search?${queryParams.toString()}`;
   console.log('  Fetching URL:', url);
@@ -182,7 +173,6 @@ export async function searchPropertiesIntermediateAI(params: SearchParams): Prom
     console.log('  ✅ Response received:', {
       total: data.total,
       resultsCount: data.results?.length || 0,
-      page: data.page,
       hasFacets: !!data.facets
     });
     return data;
@@ -284,8 +274,6 @@ export async function sendChatMessage(
       min_sqft: options.searchParams.min_sqft,
       max_sqft: options.searchParams.max_sqft,
       sort: options.searchParams.sort,
-      page: options.searchParams.page,
-      per_page: options.searchParams.per_page,
     };
     console.log('  Including search params:', requestBody.search_params);
   }

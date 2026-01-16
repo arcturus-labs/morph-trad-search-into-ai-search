@@ -54,7 +54,6 @@ function SearchPage() {
     selectedPriceRanges,
     selectedSqftRanges,
     sort,
-    page,
   } = useParsedSearchParams()
   
   const {
@@ -86,7 +85,6 @@ function SearchPage() {
     console.log('  Price Range:', { min: minPrice, max: maxPrice })
     console.log('  Sqft Range:', { min: minSqft, max: maxSqft })
     console.log('  Sort:', sort)
-    console.log('  Page:', page)
     
     // Check if query params changed (vs just facets)
     const currentQueryParams = {
@@ -132,8 +130,6 @@ function SearchPage() {
         min_sqft: minSqft,
         max_sqft: maxSqft,
         sort,
-        page,
-        per_page: 10,
       }
       
       console.log('📤 Building request params:', requestParams)
@@ -143,7 +139,6 @@ function SearchPage() {
       console.log('✅ Search successful!')
       console.log('  Total results:', searchResults.total)
       console.log('  Results returned:', searchResults.results.length)
-      console.log('  Page:', searchResults.page, 'of', Math.ceil(searchResults.total / searchResults.per_page))
       console.log('  Facets:', Object.keys(searchResults.facets))
       if (searchResults.did_you_mean) {
         console.log('  Did you mean:', searchResults.did_you_mean)
@@ -214,9 +209,6 @@ function SearchPage() {
           ? interpreted.sort 
           : null
         
-        // Keep page number
-        updates.page = page.toString()
-        
         console.log('📤 Updating URL with interpreted parameters:', updates)
         isUpdatingURLFromInterpretation.current = true
         updateURL(updates)
@@ -274,7 +266,6 @@ function SearchPage() {
         q: qValue,
         title: titleValue,
         description: descriptionValue,
-        page: '1',
         property_type: null,
         bedrooms: null,
         min_price: null,
@@ -560,6 +551,7 @@ function SearchPage() {
             <>
               <ResultsHeader
                 total={searchResults.total}
+                displayed={searchResults.results.length}
                 sort={sort}
                 onSortChange={handleSortChange}
               />

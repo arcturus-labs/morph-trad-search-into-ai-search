@@ -2,7 +2,7 @@ import os
 import logging
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
+from typing import Optional, Annotated
 from beginner.router import router as beginner_ai_router
 from intermediate.router import router as intermediate_ai_router
 from advanced.router import router as advanced_ai_router
@@ -10,6 +10,7 @@ from backend.mock_data import MOCK_PROPERTIES
 from backend.utils import (
     calculate_facets,
     search_properties,
+    SearchRequestParams,
 )
 
 # Configure logging
@@ -46,35 +47,22 @@ app.add_middleware(
 @app.get("/api/search")
 async def search(
     request: Request,
-    q: Optional[str] = Query(None, description="User's search query (what they typed)"),
-    title: Optional[str] = Query(None, description="Search term for property title"),
-    description: Optional[str] = Query(None, description="Search term for property description"),
-    property_type: Optional[str] = Query(None, description="Comma-separated property types"),
-    bedrooms: Optional[str] = Query(None, description="Comma-separated bedroom counts"),
-    min_price: Optional[int] = Query(None),
-    max_price: Optional[int] = Query(None),
-    min_sqft: Optional[int] = Query(None),
-    max_sqft: Optional[int] = Query(None),
-    sort: Optional[str] = Query("relevance", description="Sort order: relevance, price_asc, price_desc, newest"),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=100),
+    params: Annotated[SearchRequestParams, Query()],
 ):
     """Search for properties with filters and sorting."""
     # Determine API path from the request URL
     api_path = request.url.path
     return await search_properties(
-        q=q,
-        title=title,
-        description=description,
-        property_type=property_type,
-        bedrooms=bedrooms,
-        min_price=min_price,
-        max_price=max_price,
-        min_sqft=min_sqft,
-        max_sqft=max_sqft,
-        sort=sort,
-        page=page,
-        per_page=per_page,
+        q=params.q,
+        title=params.title,
+        description=params.description,
+        property_type=params.property_type,
+        bedrooms=params.bedrooms,
+        min_price=params.min_price,
+        max_price=params.max_price,
+        min_sqft=params.min_sqft,
+        max_sqft=params.max_sqft,
+        sort=params.sort,
         api_path=api_path,
         logger_instance=logger,
         mock_properties=MOCK_PROPERTIES,
