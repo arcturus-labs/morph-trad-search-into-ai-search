@@ -156,13 +156,63 @@ function SearchPage() {
       
       // Automatically send search context to backend chat endpoint
       // This happens in the background and doesn't block the UI
-      // The message indicates this is a system update with search results
+      // Empty message indicates this is a system update with search results
       try {
-        await sendChatMessage('[Search Update]', {
+        const chatResponse = await sendChatMessage('', {
           searchParams: requestParams,
           searchResults: searchResults
         })
         console.log('✅ Search context sent to backend chat endpoint')
+        
+        // Add assistant's response to chat history
+        if (chatResponse?.message) {
+          const assistantMessage = {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant' as const,
+            content: chatResponse.message,
+            timestamp: new Date()
+          }
+          setChatHistory(prev => [...prev, assistantMessage])
+          
+          // If the response includes search_params, update the URL to trigger a new search
+          if (chatResponse.search_params) {
+            console.log('🔄 Chat response includes search params, updating URL:', chatResponse.search_params)
+            const updates: Record<string, string | null> = {}
+            
+            if (chatResponse.search_params.q !== undefined) {
+              updates.q = chatResponse.search_params.q || null
+            }
+            if (chatResponse.search_params.title !== undefined) {
+              updates.title = chatResponse.search_params.title || null
+            }
+            if (chatResponse.search_params.description !== undefined) {
+              updates.description = chatResponse.search_params.description || null
+            }
+            if (chatResponse.search_params.property_type !== undefined) {
+              updates.property_type = chatResponse.search_params.property_type || null
+            }
+            if (chatResponse.search_params.bedrooms !== undefined) {
+              updates.bedrooms = chatResponse.search_params.bedrooms || null
+            }
+            if (chatResponse.search_params.min_price !== undefined) {
+              updates.min_price = chatResponse.search_params.min_price?.toString() || null
+            }
+            if (chatResponse.search_params.max_price !== undefined) {
+              updates.max_price = chatResponse.search_params.max_price?.toString() || null
+            }
+            if (chatResponse.search_params.min_sqft !== undefined) {
+              updates.min_sqft = chatResponse.search_params.min_sqft?.toString() || null
+            }
+            if (chatResponse.search_params.max_sqft !== undefined) {
+              updates.max_sqft = chatResponse.search_params.max_sqft?.toString() || null
+            }
+            if (chatResponse.search_params.sort !== undefined) {
+              updates.sort = chatResponse.search_params.sort || null
+            }
+            
+            updateURL(updates)
+          }
+        }
       } catch (error) {
         // Silently fail - this is a background operation
         console.warn('⚠️ Failed to send search context to backend:', error)
@@ -436,10 +486,49 @@ function SearchPage() {
       const assistantMessage = {
         id: `assistant-${Date.now()}`,
         role: 'assistant' as const,
-        content: response.response,
+        content: response.message,
         timestamp: new Date()
       }
       setChatHistory(prev => [...prev, assistantMessage])
+      
+      // If the response includes search_params, update the URL to trigger a new search
+      if (response.search_params) {
+        console.log('🔄 Chat response includes search params, updating URL:', response.search_params)
+        const updates: Record<string, string | null> = {}
+        
+        if (response.search_params.q !== undefined) {
+          updates.q = response.search_params.q || null
+        }
+        if (response.search_params.title !== undefined) {
+          updates.title = response.search_params.title || null
+        }
+        if (response.search_params.description !== undefined) {
+          updates.description = response.search_params.description || null
+        }
+        if (response.search_params.property_type !== undefined) {
+          updates.property_type = response.search_params.property_type || null
+        }
+        if (response.search_params.bedrooms !== undefined) {
+          updates.bedrooms = response.search_params.bedrooms || null
+        }
+        if (response.search_params.min_price !== undefined) {
+          updates.min_price = response.search_params.min_price?.toString() || null
+        }
+        if (response.search_params.max_price !== undefined) {
+          updates.max_price = response.search_params.max_price?.toString() || null
+        }
+        if (response.search_params.min_sqft !== undefined) {
+          updates.min_sqft = response.search_params.min_sqft?.toString() || null
+        }
+        if (response.search_params.max_sqft !== undefined) {
+          updates.max_sqft = response.search_params.max_sqft?.toString() || null
+        }
+        if (response.search_params.sort !== undefined) {
+          updates.sort = response.search_params.sort || null
+        }
+        
+        updateURL(updates)
+      }
     } catch (error) {
       console.error('Chat error:', error)
       // Add error message to chat history

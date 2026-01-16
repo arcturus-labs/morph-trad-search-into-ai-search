@@ -228,7 +228,19 @@ export async function getSearchSummaryIntermediateAI(params: SearchParams & { to
 }
 
 export interface ChatResponse {
-  response: string;
+  message: string;
+  search_params?: {
+    q?: string;
+    title?: string;
+    description?: string;
+    property_type?: string; // Comma-separated string from backend
+    bedrooms?: string; // Comma-separated string from backend
+    min_price?: number;
+    max_price?: number;
+    min_sqft?: number;
+    max_sqft?: number;
+    sort?: string;
+  };
 }
 
 export interface ChatRequestOptions {
@@ -267,8 +279,12 @@ export async function sendChatMessage(
       q: options.searchParams.q,
       title: options.searchParams.title,
       description: options.searchParams.description,
-      property_type: options.searchParams.property_type,
-      bedrooms: options.searchParams.bedrooms,
+      property_type: Array.isArray(options.searchParams.property_type) 
+        ? options.searchParams.property_type.join(',') 
+        : options.searchParams.property_type,
+      bedrooms: Array.isArray(options.searchParams.bedrooms)
+        ? options.searchParams.bedrooms.join(',')
+        : options.searchParams.bedrooms,
       min_price: options.searchParams.min_price,
       max_price: options.searchParams.max_price,
       min_sqft: options.searchParams.min_sqft,
