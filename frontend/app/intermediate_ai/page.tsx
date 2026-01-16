@@ -7,7 +7,7 @@ import FacetsSidebar from '@/components/FacetsSidebar'
 import ResultsHeader from '@/components/ResultsHeader'
 import PropertyCard from '@/components/PropertyCard'
 import DemoTools from '@/components/DemoTools'
-import { searchPropertiesIntermediateAI, getSearchSummaryIntermediateAI, SearchResponse, Facets, InterpretedQuery, SearchSummary } from '@/lib/api'
+import { searchProperties, searchPropertiesIntermediateAI, getSearchSummaryIntermediateAI, SearchResponse, Facets, InterpretedQuery, SearchSummary } from '@/lib/api'
 import { EXAMPLE_QUERIES } from '@/lib/constants'
 import { toTitleCase } from '@/lib/searchUtils'
 import { useParsedSearchParams } from '@/lib/useSearchParams'
@@ -27,7 +27,10 @@ function SearchPage() {
   const [error, setError] = useState<string | null>(null)
   const [showExampleQueries, setShowExampleQueries] = useState(false)
   const isUpdatingURLFromInterpretation = useRef(false)
+  const isHandlingSearchClick = useRef(false)
   const exampleQueriesRef = useRef<HTMLDivElement>(null)
+  const previousQueryParams = useRef<{ q: string | null; title: string | null; description: string | null } | null>(null)
+  const pendingQueryRef = useRef<string | null>(null)
 
   console.log('='.repeat(60))
   console.log('🔍 SearchPage Component Rendered')
@@ -63,10 +66,17 @@ function SearchPage() {
     console.log('='.repeat(60))
     console.log('🚀 performSearch() called')
     console.log('='.repeat(60))
+    
+    // Use pending query if available, otherwise use URL params
+    const effectiveQuery = pendingQueryRef.current !== null ? pendingQueryRef.current : (qParam || '')
+    const effectiveTitle = pendingQueryRef.current !== null ? toTitleCase(pendingQueryRef.current.trim()) : (titleParam || undefined)
+    const effectiveDescription = pendingQueryRef.current !== null ? pendingQueryRef.current.toLowerCase().trim() : (descriptionParam || undefined)
+    
     console.log('📋 Current State:')
-    console.log('  Query (q):', qParam)
-    console.log('  Title:', titleParam)
-    console.log('  Description:', descriptionParam)
+    console.log('  Pending Query:', pendingQueryRef.current)
+    console.log('  Query (q):', effectiveQuery)
+    console.log('  Title:', effectiveTitle)
+    console.log('  Description:', effectiveDescription)
     console.log('  Selected Property Types:', selectedPropertyTypes)
     console.log('  Selected Bedrooms:', selectedBedrooms)
     console.log('  Price Range:', { min: minPrice, max: maxPrice })
@@ -74,22 +84,44 @@ function SearchPage() {
     console.log('  Sort:', sort)
     console.log('  Page:', page)
     
+    // Check if query params changed (vs just facets)
+    const currentQueryParams = {
+      q: effectiveQuery || null,
+      title: effectiveTitle || null,
+      description: effectiveDescription || null,
+    }
+    const isQueryChange = previousQueryParams.current === null || 
+      previousQueryParams.current.q !== currentQueryParams.q ||
+      previousQueryParams.current.title !== currentQueryParams.title ||
+      previousQueryParams.current.description !== currentQueryParams.description
+    
+    console.log('🔍 Query change detected:', isQueryChange)
+    console.log('  Previous:', previousQueryParams.current)
+    console.log('  Current:', currentQueryParams)
+    
+    // Update ref for next time
+    previousQueryParams.current = currentQueryParams
+    
     setLoading(true)
     setError(null)
-    setInterpretedQuery(null)
-    setSummary(null)
     
-    // Store the original query for display
-    if (qParam) {
-      setOriginalQuery(qParam)
+    // Only clear interpreted query and summary if it's a new query
+    if (isQueryChange) {
+      setInterpretedQuery(null)
+      setSummary(null)
+      
+      // Store the original query for display
+      if (effectiveQuery) {
+        setOriginalQuery(effectiveQuery)
+      }
     }
     
     try {
-      // Build search request params - use values from URL params
+      // Build search request params - use effective query values
       const requestParams: any = {
-        q: qParam || undefined,
-        title: titleParam || undefined,
-        description: descriptionParam || undefined,
+        q: effectiveQuery || undefined,
+        title: effectiveTitle || undefined,
+        description: effectiveDescription || undefined,
         property_type: selectedPropertyTypes.length > 0 ? selectedPropertyTypes : undefined,
         bedrooms: selectedBedrooms.length > 0 ? selectedBedrooms : undefined,
         min_price: minPrice,
@@ -103,8 +135,10 @@ function SearchPage() {
       
       console.log('📤 Building request params:', requestParams)
       
-      // Call search - interpretation happens automatically in the backend
-      const searchResults = await searchPropertiesIntermediateAI(requestParams)
+      // Use traditional search if only facets changed, otherwise use AI search
+      const searchResults = isQueryChange
+        ? await searchPropertiesIntermediateAI(requestParams)
+        : await searchProperties(requestParams)
       
       console.log('✅ Search successful!')
       console.log('  Total results:', searchResults.total)
@@ -118,96 +152,137 @@ function SearchPage() {
         console.log('  Interpreted query:', searchResults.interpreted_query)
       }
       
-      // Update search results and interpreted query from response
+      // Update search results and facets
       setSearchResults(searchResults)
       setFacets(searchResults.facets)
-      setInterpretedQuery(searchResults.interpreted_query || null)
       setError(null)
       setLoading(false)
       console.log('✅ State updated with search results')
       
-      // Fetch search summary after results are loaded
-      if (searchResults.results.length > 0) {
-        setSummaryLoading(true)
-        try {
-          const summaryParams = {
-            q: qParam || undefined,
-            title: titleParam || undefined,
-            description: descriptionParam || undefined,
-            property_type: selectedPropertyTypes.length > 0 ? selectedPropertyTypes : undefined,
-            bedrooms: selectedBedrooms.length > 0 ? selectedBedrooms : undefined,
-            min_price: minPrice,
-            max_price: maxPrice,
-            min_sqft: minSqft,
-            max_sqft: maxSqft,
-            total: searchResults.total,
-            results: searchResults.results,
+      // Only update interpreted query and fetch summary for new queries
+      if (isQueryChange) {
+        // Update interpreted query from response (only for AI search)
+        if (searchResults.interpreted_query) {
+          setInterpretedQuery(searchResults.interpreted_query)
+          
+          // Update URL with interpreted parameters IMMEDIATELY (before summary fetch)
+          const interpreted = searchResults.interpreted_query
+          const updates: Record<string, string | null> = {}
+          
+          // Update q parameter to the search terms from the interpreted query
+          const searchTerms = interpreted.title || interpreted.description || ''
+          if (searchTerms) {
+            updates.q = searchTerms.toLowerCase().trim()
+          } else {
+            updates.q = null
           }
-          console.log('📡 Fetching search summary with params:', summaryParams)
-          console.log('  Results count:', searchResults.results.length)
-          const summaryData = await getSearchSummaryIntermediateAI(summaryParams)
-          console.log('✅ Summary received:', summaryData)
-          setSummary(summaryData)
-        } catch (error) {
-          console.error('❌ Error fetching summary:', error)
-          // Don't set error state - summary is optional
-          setSummary(null)
-        } finally {
-          setSummaryLoading(false)
+          
+          // Update with interpreted parameters
+          updates.title = interpreted.title || null
+          updates.description = interpreted.description || null
+          updates.property_type = interpreted.property_type && interpreted.property_type.length > 0 
+            ? interpreted.property_type.join(',') 
+            : null
+          updates.bedrooms = interpreted.bedrooms && interpreted.bedrooms.length > 0 
+            ? interpreted.bedrooms.join(',') 
+            : null
+          updates.min_price = interpreted.min_price !== undefined 
+            ? interpreted.min_price.toString() 
+            : null
+          updates.max_price = interpreted.max_price !== undefined 
+            ? interpreted.max_price.toString() 
+            : null
+          updates.min_sqft = interpreted.min_sqft !== undefined 
+            ? interpreted.min_sqft.toString() 
+            : null
+          updates.max_sqft = interpreted.max_sqft !== undefined 
+            ? interpreted.max_sqft.toString() 
+            : null
+          updates.sort = interpreted.sort && interpreted.sort !== 'relevance' 
+            ? interpreted.sort 
+            : null
+          
+          // Keep page number
+          updates.page = page.toString()
+          
+          console.log('📤 Updating URL with interpreted parameters:', updates)
+          isUpdatingURLFromInterpretation.current = true
+          updateURL(updates)
+          // Reset flag after a short delay to allow URL update to complete
+          setTimeout(() => {
+            isUpdatingURLFromInterpretation.current = false
+          }, 100)
+          
+          // Clear pending query now that URL has been updated
+          pendingQueryRef.current = null
         }
-      } else {
-        setSummary(null)
+        
+        // Fetch search summary after URL is updated, but only if there's a query or filters
+        // Use interpreted query values if available, otherwise use effective query values
+        const interpreted = searchResults.interpreted_query
+        const hasTextQuery = interpreted 
+          ? (interpreted.title || interpreted.description || '')
+          : (effectiveQuery || effectiveTitle || effectiveDescription)
+        // Check filters from interpreted query first (most accurate), then fall back to URL params
+        const hasFilters = interpreted ? (
+          (interpreted.property_type && interpreted.property_type.length > 0) ||
+          (interpreted.bedrooms && interpreted.bedrooms.length > 0) ||
+          interpreted.min_price !== undefined ||
+          interpreted.max_price !== undefined ||
+          interpreted.min_sqft !== undefined ||
+          interpreted.max_sqft !== undefined
+        ) : (
+          selectedPropertyTypes.length > 0 || 
+          selectedBedrooms.length > 0 || 
+          minPrice !== undefined || 
+          maxPrice !== undefined || 
+          minSqft !== undefined || 
+          maxSqft !== undefined
+        )
+        const hasQuery = !!hasTextQuery || hasFilters
+        if (searchResults.results.length > 0 && hasQuery) {
+          setSummaryLoading(true)
+          try {
+            // Use interpreted query values if available, otherwise use effective query values
+            const summaryQuery = interpreted?.title || interpreted?.description || effectiveQuery || undefined
+            const summaryTitle = interpreted?.title || effectiveTitle || undefined
+            const summaryDescription = interpreted?.description || effectiveDescription || undefined
+            const summaryParams = {
+              q: summaryQuery,
+              title: summaryTitle,
+              description: summaryDescription,
+              property_type: (interpreted?.property_type && interpreted.property_type.length > 0) 
+                ? interpreted.property_type 
+                : (selectedPropertyTypes.length > 0 ? selectedPropertyTypes : undefined),
+              bedrooms: (interpreted?.bedrooms && interpreted.bedrooms.length > 0)
+                ? interpreted.bedrooms
+                : (selectedBedrooms.length > 0 ? selectedBedrooms : undefined),
+              min_price: interpreted?.min_price !== undefined ? interpreted.min_price : minPrice,
+              max_price: interpreted?.max_price !== undefined ? interpreted.max_price : maxPrice,
+              min_sqft: interpreted?.min_sqft !== undefined ? interpreted.min_sqft : minSqft,
+              max_sqft: interpreted?.max_sqft !== undefined ? interpreted.max_sqft : maxSqft,
+              total: searchResults.total,
+              results: searchResults.results,
+            }
+            console.log('📡 Fetching search summary with params:', summaryParams)
+            console.log('  Results count:', searchResults.results.length)
+            const summaryData = await getSearchSummaryIntermediateAI(summaryParams)
+            console.log('✅ Summary received:', summaryData)
+            setSummary(summaryData)
+          } catch (error) {
+            console.error('❌ Error fetching summary:', error)
+            // Don't set error state - summary is optional
+            setSummary(null)
+          } finally {
+            setSummaryLoading(false)
+          }
+        } else {
+          setSummary(null)
+        }
       }
       
-      // Update URL with interpreted parameters (without page reload)
-      if (searchResults.interpreted_query) {
-        const interpreted = searchResults.interpreted_query
-        const updates: Record<string, string | null> = {}
-        
-        // Update q parameter to the search terms from the interpreted query
-        const searchTerms = interpreted.title || interpreted.description || ''
-        if (searchTerms) {
-          updates.q = searchTerms.toLowerCase().trim()
-        } else {
-          updates.q = null
-        }
-        
-        // Update with interpreted parameters
-        updates.title = interpreted.title || null
-        updates.description = interpreted.description || null
-        updates.property_type = interpreted.property_type && interpreted.property_type.length > 0 
-          ? interpreted.property_type.join(',') 
-          : null
-        updates.bedrooms = interpreted.bedrooms && interpreted.bedrooms.length > 0 
-          ? interpreted.bedrooms.join(',') 
-          : null
-        updates.min_price = interpreted.min_price !== undefined 
-          ? interpreted.min_price.toString() 
-          : null
-        updates.max_price = interpreted.max_price !== undefined 
-          ? interpreted.max_price.toString() 
-          : null
-        updates.min_sqft = interpreted.min_sqft !== undefined 
-          ? interpreted.min_sqft.toString() 
-          : null
-        updates.max_sqft = interpreted.max_sqft !== undefined 
-          ? interpreted.max_sqft.toString() 
-          : null
-        updates.sort = interpreted.sort && interpreted.sort !== 'relevance' 
-          ? interpreted.sort 
-          : null
-        
-        // Keep page number
-        updates.page = page.toString()
-        
-        console.log('📤 Updating URL with interpreted parameters:', updates)
-        isUpdatingURLFromInterpretation.current = true
-        updateURL(updates)
-        // Reset flag after a short delay to allow URL update to complete
-        setTimeout(() => {
-          isUpdatingURLFromInterpretation.current = false
-        }, 100)
-      }
+      // Reset search click flag after search completes
+      isHandlingSearchClick.current = false
     } catch (error) {
       console.error('❌ Search error:', error)
       console.error('Error details:', error instanceof Error ? error.message : String(error))
@@ -215,6 +290,8 @@ function SearchPage() {
       setSearchResults(null)
       setSummary(null)
       setLoading(false)
+      // Reset search click flag after error
+      isHandlingSearchClick.current = false
       console.log('🏁 Search complete (with error), loading set to false')
       console.log('='.repeat(60))
     }
@@ -284,6 +361,13 @@ function SearchPage() {
       return
     }
     
+    // Skip if we're handling a search button click (it will call performSearch directly)
+    if (isHandlingSearchClick.current) {
+      console.log('⏭️ Skipping performSearch - handling search button click')
+      isHandlingSearchClick.current = false
+      return
+    }
+    
     console.log('🔄 useEffect triggered - searchParams changed')
     console.log('  Search params string:', searchParams.toString())
     performSearch()
@@ -299,15 +383,13 @@ function SearchPage() {
     setOriginalQuery(null)
     
     if (query.trim()) {
-      const qValue = query.toLowerCase().trim()
-      const titleValue = toTitleCase(query.trim())
-      const descriptionValue = query.toLowerCase().trim()
+      // Set pending query in ref (immediately available) and trigger search directly
+      pendingQueryRef.current = query.trim()
+      isHandlingSearchClick.current = true
       
-      // Clear all facet filters when submitting a new query
+      // Clear facet filters by updating URL, but keep query params as-is for now
+      // The query will be updated when interpreted query comes back
       updateURL({ 
-        q: qValue,
-        title: titleValue,
-        description: descriptionValue,
         page: '1',
         property_type: null,
         bedrooms: null,
@@ -317,8 +399,12 @@ function SearchPage() {
         max_sqft: null,
         sort: null
       })
+      
+      // Trigger search directly (useEffect will be skipped due to isHandlingSearchClick flag)
+      performSearch()
     } else {
       // Clear search params if query is empty
+      pendingQueryRef.current = null
       updateURL({ 
         q: null,
         title: null,
@@ -582,82 +668,114 @@ function SearchPage() {
                   fontSize: '14px',
                   lineHeight: '1.6'
                 }}>
-                  {summaryLoading ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '16px',
-                        height: '16px',
-                        border: '2px solid #3498db',
-                        borderTopColor: 'transparent',
-                        borderRadius: '50%',
-                        animation: 'spin 0.8s linear infinite'
-                      }} />
-                      <span>Generating search summary...</span>
-                    </div>
-                  ) : summary ? (
-                    <>
-                      <div style={{ marginBottom: summary.search_ideas && summary.search_ideas.length > 0 ? '12px' : '0' }}>
-                        {summary.summary}
-                      </div>
-                      {summary.search_ideas && summary.search_ideas.length > 0 && (
-                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #dee2e6' }}>
-                          <div style={{ marginBottom: '8px', fontWeight: '600', fontSize: '13px', color: '#495057' }}>
-                            Related searches:
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                            {summary.search_ideas.map((idea, index) => (
-                              <button
-                                key={index}
-                                onClick={() => {
-                                  const qValue = idea.toLowerCase().trim()
-                                  const titleValue = toTitleCase(idea.trim())
-                                  const descriptionValue = idea.toLowerCase().trim()
-                                  updateURL({ 
-                                    q: qValue,
-                                    title: titleValue,
-                                    description: descriptionValue,
-                                    page: '1',
-                                    property_type: null,
-                                    bedrooms: null,
-                                    min_price: null,
-                                    max_price: null,
-                                    min_sqft: null,
-                                    max_sqft: null,
-                                    sort: null
-                                  })
-                                }}
-                                style={{
-                                  backgroundColor: '#e9ecef',
-                                  border: '1px solid #ced4da',
-                                  borderRadius: '16px',
-                                  padding: '6px 12px',
-                                  fontSize: '13px',
-                                  color: '#495057',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s',
-                                  fontWeight: '500'
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#dee2e6'
-                                  e.currentTarget.style.borderColor = '#adb5bd'
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#e9ecef'
-                                  e.currentTarget.style.borderColor = '#ced4da'
-                                }}
-                              >
-                                {idea}
-                              </button>
-                            ))}
-                          </div>
+                  {(() => {
+                    // Check if there's a query (text or filters) - match the logic used for fetching summary
+                    const hasTextQuery = qParam || titleParam || descriptionParam
+                    const hasFilters = selectedPropertyTypes.length > 0 || 
+                      selectedBedrooms.length > 0 || 
+                      minPrice !== undefined || 
+                      maxPrice !== undefined || 
+                      minSqft !== undefined || 
+                      maxSqft !== undefined
+                    const hasQuery = hasTextQuery || hasFilters
+                    if (!hasQuery && !summary) {
+                      // Show default text when there's no query and no summary
+                      return (
+                        <div>
+                          Here are some homes you might like. Use the search box above or filters on the left to find exactly what you're looking for.
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    <div>
-                      Based on your query, we found {searchResults.total} properties matching your criteria.
-                    </div>
-                  )}
+                      )
+                    }
+                    if (summaryLoading) {
+                      return (
+                        <>
+                          <style>{`
+                            @keyframes spin {
+                              to { transform: rotate(360deg); }
+                            }
+                          `}</style>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                              width: '16px',
+                              height: '16px',
+                              border: '2px solid #3498db',
+                              borderTopColor: 'transparent',
+                              borderRadius: '50%',
+                              animation: 'spin 0.8s linear infinite'
+                            }} />
+                            <span>Generating search summary...</span>
+                          </div>
+                        </>
+                      )
+                    }
+                    if (summary) {
+                      return (
+                        <>
+                          <div style={{ marginBottom: summary.search_ideas && summary.search_ideas.length > 0 ? '12px' : '0' }}>
+                            {summary.summary}
+                          </div>
+                          {summary.search_ideas && summary.search_ideas.length > 0 && (
+                            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #dee2e6' }}>
+                              <div style={{ marginBottom: '8px', fontWeight: '600', fontSize: '13px', color: '#495057' }}>
+                                Related searches:
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {summary.search_ideas.map((idea, index) => (
+                                  <button
+                                    key={index}
+                                    onClick={() => {
+                                      const qValue = idea.toLowerCase().trim()
+                                      const titleValue = toTitleCase(idea.trim())
+                                      const descriptionValue = idea.toLowerCase().trim()
+                                      updateURL({ 
+                                        q: qValue,
+                                        title: titleValue,
+                                        description: descriptionValue,
+                                        page: '1',
+                                        property_type: null,
+                                        bedrooms: null,
+                                        min_price: null,
+                                        max_price: null,
+                                        min_sqft: null,
+                                        max_sqft: null,
+                                        sort: null
+                                      })
+                                    }}
+                                    style={{
+                                      backgroundColor: '#e9ecef',
+                                      border: '1px solid #ced4da',
+                                      borderRadius: '16px',
+                                      padding: '6px 12px',
+                                      fontSize: '13px',
+                                      color: '#495057',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s',
+                                      fontWeight: '500'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#dee2e6'
+                                      e.currentTarget.style.borderColor = '#adb5bd'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#e9ecef'
+                                      e.currentTarget.style.borderColor = '#ced4da'
+                                    }}
+                                  >
+                                    {idea}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )
+                    }
+                    return (
+                      <div>
+                        Based on your query, we found {searchResults.total} properties matching your criteria.
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
               <div className="results-list">
