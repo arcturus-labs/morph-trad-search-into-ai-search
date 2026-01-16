@@ -159,6 +159,20 @@ function SearchPage() {
       setLoading(false)
       console.log('✅ State updated with search results')
       
+      // Automatically send search context to backend chat endpoint
+      // This happens in the background and doesn't block the UI
+      // The message indicates this is a system update with search results
+      try {
+        await sendChatMessage('[Search Update]', {
+          searchParams: requestParams,
+          searchResults: searchResults
+        })
+        console.log('✅ Search context sent to backend chat endpoint')
+      } catch (error) {
+        // Silently fail - this is a background operation
+        console.warn('⚠️ Failed to send search context to backend:', error)
+      }
+      
       // Only update interpreted query for new queries
       if (isQueryChange && searchResults.interpreted_query) {
         setInterpretedQuery(searchResults.interpreted_query)
@@ -549,13 +563,6 @@ function SearchPage() {
                 sort={sort}
                 onSortChange={handleSortChange}
               />
-              {searchResults.results.length > 0 && (
-                <div className={`results-summary ${styles.resultsSummary}`}>
-                  <div>
-                    Found {searchResults.total} {searchResults.total === 1 ? 'property' : 'properties'} matching your criteria.
-                  </div>
-                </div>
-              )}
               <div className="results-list">
                 {searchResults.results.length === 0 ? (
                   <div className={styles.loadingMessage}>

@@ -241,7 +241,16 @@ export interface ChatResponse {
   response: string;
 }
 
-export async function sendChatMessage(message: string): Promise<ChatResponse> {
+export interface ChatRequestOptions {
+  message: string;
+  searchParams?: SearchParams;
+  searchResults?: SearchResponse;
+}
+
+export async function sendChatMessage(
+  message: string,
+  options?: { searchParams?: SearchParams; searchResults?: SearchResponse }
+): Promise<ChatResponse> {
   console.log('📡 API: sendChatMessage() called')
   console.log('  API_BASE_URL:', API_BASE_URL)
   console.log('  Message:', message)
@@ -249,13 +258,45 @@ export async function sendChatMessage(message: string): Promise<ChatResponse> {
   const url = `${API_BASE_URL}/advanced_ai/chat`;
   console.log('  POST URL:', url);
   
+  // Build request body with optional search context
+  const requestBody: any = { message };
+  
+  if (options?.searchResults) {
+    requestBody.search_results = options.searchResults.results;
+    requestBody.facets = options.searchResults.facets;
+    requestBody.total = options.searchResults.total;
+    console.log('  Including search context:', {
+      resultsCount: options.searchResults.results.length,
+      total: options.searchResults.total,
+      hasFacets: !!options.searchResults.facets
+    });
+  }
+  
+  if (options?.searchParams) {
+    requestBody.search_params = {
+      q: options.searchParams.q,
+      title: options.searchParams.title,
+      description: options.searchParams.description,
+      property_type: options.searchParams.property_type,
+      bedrooms: options.searchParams.bedrooms,
+      min_price: options.searchParams.min_price,
+      max_price: options.searchParams.max_price,
+      min_sqft: options.searchParams.min_sqft,
+      max_sqft: options.searchParams.max_sqft,
+      sort: options.searchParams.sort,
+      page: options.searchParams.page,
+      per_page: options.searchParams.per_page,
+    };
+    console.log('  Including search params:', requestBody.search_params);
+  }
+  
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify(requestBody),
     });
     console.log('  Response status:', response.status, response.statusText);
     
