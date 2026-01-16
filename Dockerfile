@@ -17,11 +17,14 @@ WORKDIR /app/backend
 # Install UV
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy all backend source files first (including subdirectories, but exclude .venv if it exists)
-COPY backend/ ./
+# Copy requirements first for better layer caching
+COPY backend/pyproject.toml backend/requirements.txt ./
 
-# Create venv and install dependencies (after copying source files)
+# Create venv and install dependencies
 RUN uv venv && uv pip install -r requirements.txt
+
+# Copy all backend source files (including subdirectories)
+COPY backend/ ./
 
 # Stage 3: Runtime
 FROM python:3.12-slim
