@@ -21,8 +21,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY backend/pyproject.toml backend/requirements.txt ./
 RUN uv venv && uv pip install -r requirements.txt
 
-# Copy backend source files
-COPY backend/*.py ./
+# Copy backend source files (including subdirectories)
+COPY backend/ ./
 
 # Stage 3: Runtime
 FROM python:3.12-slim
@@ -36,8 +36,8 @@ RUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists
 
 # Copy backend virtual environment
 COPY --from=backend-setup /app/backend/.venv /app/backend/.venv
-# Copy all backend Python files
-COPY backend/*.py /app/backend/
+# Copy all backend files (including subdirectories)
+COPY backend/ /app/backend/
 
 # Copy frontend standalone build
 COPY --from=frontend-builder /app/frontend/.next/standalone /app/frontend/
