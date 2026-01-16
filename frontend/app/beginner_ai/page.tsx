@@ -8,7 +8,7 @@ import FacetsSidebar from '@/components/FacetsSidebar'
 import ResultsHeader from '@/components/ResultsHeader'
 import PropertyCard from '@/components/PropertyCard'
 import DemoTools from '@/components/DemoTools'
-import { searchPropertiesBeginnerAI, interpretQueryBeginnerAI, SearchResponse, Facets, InterpretedQuery } from '@/lib/api'
+import { searchProperties, interpretQueryBeginnerAI, SearchResponse, Facets, InterpretedQuery } from '@/lib/api'
 import { EXAMPLE_QUERIES } from '@/lib/constants'
 import { toTitleCase } from '@/lib/searchUtils'
 import { useParsedSearchParams } from '@/lib/useSearchParams'
@@ -116,7 +116,7 @@ function SearchPage() {
       previousQParam.current = qParam
       
       // Start both calls in parallel, but don't wait for interpret to finish
-      const searchPromise = searchPropertiesBeginnerAI(requestParams)
+      const searchPromise = searchProperties(requestParams)
       const interpretPromise = shouldInterpret ? (() => {
         setInterpreting(true)
         return interpretQueryBeginnerAI(qParam).catch((err) => {

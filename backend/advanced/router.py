@@ -1,19 +1,16 @@
 import logging
 from fastapi import APIRouter, Query, Body
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
-from backend.ai_query_interpreter import interpret_query
+from backend.query_interpreter import interpret_user_query
 from backend.mock_data import MOCK_PROPERTIES
-from advanced.chat import process_chat_message
 from backend.utils import (
     score_title_and_description,
     filter_properties,
     sort_properties,
     calculate_facets_excluding_filter,
 )
-
-class ChatRequest(BaseModel):
-    message: str
+from intermediate.logic import generate_search_summary
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +51,7 @@ async def search(
     if q:
         try:
             logger.info("  Interpreting user query...")
-            interpreted_params = await interpret_query(q=q)
+            interpreted_params = await interpret_user_query(q=q)
             
             if interpreted_params:
                 interpreted_query = interpreted_params.model_dump(exclude_none=True)
@@ -248,23 +245,77 @@ async def search(
     
     return result
 
+@router.post("/summary")
+async def summary(
+    q: Optional[str] = Body(None, description="User's search query (what they typed)"),
+    title: Optional[str] = Body(None, description="Search term for property title"),
+    description: Optional[str] = Body(None, description="Search term for property description"),
+    property_type: Optional[str] = Body(None, description="Comma-separated property types"),
+    bedrooms: Optional[str] = Body(None, description="Comma-separated bedroom counts"),
+    min_price: Optional[int] = Body(None),
+    max_price: Optional[int] = Body(None),
+    min_sqft: Optional[int] = Body(None),
+    max_sqft: Optional[int] = Body(None),
+    total: Optional[int] = Body(None, description="Total number of search results"),
+    results: Optional[List[Dict[str, Any]]] = Body(None, description="Full list of search results"),
+):
+    """Generate an AI-powered summary of search results and suggest related search ideas."""
+    logger.info("=" * 60)
+    logger.info("POST /api/advanced_ai/summary - Summary request received")
+    logger.info(f"  Query: {q}")
+    logger.info(f"  Title: {title}")
+    logger.info(f"  Description: {description}")
+    logger.info(f"  Property types: {property_type}")
+    logger.info(f"  Bedrooms: {bedrooms}")
+    logger.info(f"  Price range: ${min_price} - ${max_price}")
+    logger.info(f"  Square feet: {min_sqft} - {max_sqft}")
+    logger.info(f"  Total results: {total}")
+    logger.info(f"  Results provided: {len(results) if results else 0} properties")
+    
+    try:
+        summary_result = await generate_search_summary(
+            q=q,
+            title=title,
+            description=description,
+            property_type=property_type,
+            bedrooms=bedrooms,
+            min_price=min_price,
+            max_price=max_price,
+            min_sqft=min_sqft,
+            max_sqft=max_sqft,
+            total=total,
+            results=results or [],
+        )
+        
+        logger.info("  Summary generated successfully")
+        logger.info("=" * 60)
+        return summary_result
+    except Exception as e:
+        logger.error(f"  Error generating summary: {e}", exc_info=True)
+        logger.info("=" * 60)
+        # Return default summary on error
+        return {
+            "summary": "Searching for properties matching your criteria.",
+            "search_ideas": []
+        }
+
+class ChatRequest(BaseModel):
+    message: str
+
 @router.post("/chat")
 async def chat(request: ChatRequest):
-    """Process a chat message and return a response."""
+    """Echo chat endpoint that returns what the user said."""
     logger.info("=" * 60)
     logger.info("POST /api/advanced_ai/chat - Chat request received")
     logger.info(f"  Message: {request.message}")
     
-    try:
-        chat_response = await process_chat_message(request.message)
-        logger.info(f"  Response type: {chat_response.type}")
-        logger.info("=" * 60)
-        return chat_response.model_dump()
-    except Exception as e:
-        logger.error(f"  Error processing chat message: {e}", exc_info=True)
-        return {
-            "response_text": "I'm sorry, I encountered an error processing your message. Please try again.",
-            "payload": None,
-            "type": "QueryParameters",
-        }
-
+    # Simulate thinking time (0.5 seconds)
+    import asyncio
+    await asyncio.sleep(0.5)
+    
+    # Echo back the message
+    response = f'you said "{request.message}"'
+    logger.info(f"  Response: {response}")
+    logger.info("=" * 60)
+    
+    return {"response": response}

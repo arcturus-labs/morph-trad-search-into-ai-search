@@ -41,11 +41,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Shared search endpoint - handles /api/search, /api/traditional/search, and /api/beginner_ai/search
+# Shared search endpoint - handles /api/search
 # Note: /api/intermediate_ai/search is handled by its own router
 @app.get("/api/search")
-@app.get("/api/traditional/search")
-@app.get("/api/beginner_ai/search")
 async def search(
     request: Request,
     q: Optional[str] = Query(None, description="User's search query (what they typed)"),
@@ -82,11 +80,8 @@ async def search(
         mock_properties=MOCK_PROPERTIES,
     )
 
-# Shared properties endpoint - handles /api/properties/{property_id}, /api/traditional/properties/{property_id}, /api/beginner_ai/properties/{property_id}, and /api/intermediate_ai/properties/{property_id}
+# Shared properties endpoint - handles /api/properties/{property_id}
 @app.get("/api/properties/{property_id}")
-@app.get("/api/traditional/properties/{property_id}")
-@app.get("/api/beginner_ai/properties/{property_id}")
-@app.get("/api/intermediate_ai/properties/{property_id}")
 async def get_property(property_id: str):
     """Get a single property by ID."""
     logger.info(f"GET /api/properties/{property_id} - Property detail request")
@@ -97,11 +92,8 @@ async def get_property(property_id: str):
     logger.warning(f"  Property not found: {property_id}")
     raise HTTPException(status_code=404, detail="Property not found")
 
-# Shared facets endpoint - handles /api/facets, /api/traditional/facets, /api/beginner_ai/facets, and /api/intermediate_ai/facets
+# Shared facets endpoint - handles /api/facets
 @app.get("/api/facets")
-@app.get("/api/traditional/facets")
-@app.get("/api/beginner_ai/facets")
-@app.get("/api/intermediate_ai/facets")
 async def get_facets():
     """Get available facets for all properties."""
     logger.info("GET /api/facets - Facets request")
@@ -113,7 +105,7 @@ async def get_facets():
 app.include_router(beginner_ai_router)
 # Include intermediate_ai router for /interpret and /summary endpoints
 app.include_router(intermediate_ai_router)
-# Include advanced_ai router for /search endpoint
+# Include advanced_ai router for /search and /summary endpoints
 app.include_router(advanced_ai_router)
 
 @app.get("/ping")
