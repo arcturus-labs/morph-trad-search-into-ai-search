@@ -3,11 +3,11 @@ import logging
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
-from beginner_ai import router as beginner_ai_router
-from intermediate_ai import router as intermediate_ai_router
-from advanced_ai import router as advanced_ai_router
-from mock_data import MOCK_PROPERTIES
-from utils import (
+from beginner.router import router as beginner_ai_router
+from intermediate.router import router as intermediate_ai_router
+from advanced.router import router as advanced_ai_router
+from backend.mock_data import MOCK_PROPERTIES
+from backend.utils import (
     calculate_facets,
     search_properties,
 )
