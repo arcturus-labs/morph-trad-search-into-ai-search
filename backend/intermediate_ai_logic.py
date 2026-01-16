@@ -3,6 +3,7 @@ Special AI logic for intermediate AI search features.
 """
 
 import os
+import json
 import logging
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class SearchSummaryOutput(BaseModel):
     """Structured output for search summary and ideas."""
-    summary: str = Field(description="A brief summary of what the user is searching for (1-2 sentences)")
+    summary: str = Field(description="A contextualized summary of the search results, analyzing what was found in relation to what the user was searching for (2-3 sentences)")
     search_ideas: List[str] = Field(description="An array of 2-3 related search idea strings")
 
 
@@ -25,68 +26,41 @@ class SearchSummaryOutput(BaseModel):
 SUMMARY_AGENT_PROMPT = """You are an AI assistant that helps users understand their real estate search results and discover new search ideas.
 
 Your task is to:
-1. Provide a brief, helpful summary of what the user is searching for based on their current filters and query
+1. Analyze the actual search results provided and provide a contextualized summary that ties together what the user was searching for with what was actually found
 2. Suggest 2-3 related search ideas that might help them find what they're looking for
 
 ## Guidelines
 
 ### Summary
-- Keep it concise (1-2 sentences)
-- Describe what they're searching for in natural language
-- Mention key filters if relevant (e.g., "affordable 2-bedroom apartments" or "family homes under $800k")
+- Focus on analyzing the RESULTS, not restating the search query (the user already knows what they searched for)
+- Look at the actual properties returned and identify patterns, commonalities, or notable characteristics
+- Connect what they were searching for with what was actually found
+- Mention specific details from the results (price ranges, neighborhoods, property types, sizes, etc.)
+- Keep it concise (2-3 sentences)
+- Examples of good summaries:
+  - "Based on your search for 2-bedroom apartments, we found 12 properties ranging from $450k to $650k, mostly located in Mission District and SOMA. Many feature updated kitchens and modern amenities."
+  - "Your search for family homes under $800k returned 8 properties, with 3-4 bedrooms averaging 1,800 sqft. Most are in Noe Valley and Pacific Heights, with several featuring yards and updated interiors."
+  - "The spacious condos matching your criteria include 15 properties over 1,200 sqft, with prices from $600k to $950k. Many are in newer buildings with parking and modern finishes."
 
 ### Search Ideas
-- Suggest 2-3 alternative or related searches
+- Suggest 2-3 alternative or related searches based on the results and search intent
 - Make them actionable and specific
 - They should be natural language queries that users could type
-- Examples:
-  - If searching "2 bedroom apartments", suggest "2 bedroom condos" or "1-2 bedroom apartments with parking"
-  - If searching "family home under 800k", suggest "3-4 bedroom houses" or "family homes with yard"
-  - If searching "spacious condos", suggest "large condos with parking" or "2+ bedroom condos"
+- Consider what might complement or refine the current search based on what was found
 
 ## Output Format
 
 Return a JSON object with:
-- `summary`: A brief summary string (1-2 sentences)
+- `summary`: A contextualized summary string analyzing the results (2-3 sentences)
 - `search_ideas`: An array of 2-3 search idea strings
 
-## Examples
+## Important Notes
 
-### Example 1
-Input: Query="2 bedroom apartments", property_type=["apartment"], bedrooms=["2"]
-Output:
-{
-  "summary": "You're searching for 2-bedroom apartments. These properties offer a good balance of space and affordability.",
-  "search_ideas": [
-    "2 bedroom condos",
-    "1-2 bedroom apartments with parking",
-    "2 bedroom apartments under $600k"
-  ]
-}
-
-### Example 2
-Input: Query="family home", bedrooms=["3", "4", "5"], max_price=800000
-Output:
-{
-  "summary": "You're looking for family homes with 3-5 bedrooms under $800,000. These properties are ideal for families needing space and affordability.",
-  "search_ideas": [
-    "3-4 bedroom houses with yard",
-    "family homes near schools",
-    "4 bedroom houses under $750k"
-  ]
-}
-
-### Example 3
-Input: Query="spacious condos", min_sqft=1200, property_type=["condo"]
-Output:
-{
-  "summary": "You're searching for spacious condos with at least 1,200 square feet. These properties offer comfortable living space in a condo setting.",
-  "search_ideas": [
-    "large condos with parking",
-    "2+ bedroom condos over 1500 sqft",
-    "spacious condos with modern amenities"
-  ]
-}
+- You will receive the full search results as JSON data
+- Analyze the actual properties returned, not just the search parameters
+- Look for patterns in price, location, size, features, etc.
+- Connect the search intent with what was actually found
+- Don't just restate what they searched for - tell them what they found
 """
 
 
@@ -122,6 +96,7 @@ async def generate_search_summary(
     min_sqft: Optional[int] = None,
     max_sqft: Optional[int] = None,
     total: Optional[int] = None,
+    results: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Generate a search summary and related search ideas using AI.
@@ -137,6 +112,7 @@ async def generate_search_summary(
         min_sqft: Minimum square feet
         max_sqft: Maximum square feet
         total: Total number of results
+        results: Full list of search result properties (as dicts)
     
     Returns:
         Dict with 'summary' and 'search_ideas' keys
@@ -144,7 +120,7 @@ async def generate_search_summary(
     if not os.getenv("OPENAI_API_KEY"):
         logger.warning("OPENAI_API_KEY is not set, returning default summary")
         return {
-            "summary": "Searching for properties matching your criteria.",
+            "summary": f"Found {total or 0} properties matching your search criteria.",
             "search_ideas": []
         }
     
@@ -153,7 +129,7 @@ async def generate_search_summary(
         agent = _create_summary_agent()
         if agent is None:
             return {
-                "summary": "Searching for properties matching your criteria.",
+                "summary": f"Found {total or 0} properties matching your search criteria.",
                 "search_ideas": []
             }
         
@@ -182,6 +158,11 @@ async def generate_search_summary(
         
         context_message = "Current search parameters:\n" + "\n".join(context_parts)
         
+        # Add search results as JSON if provided
+        if results:
+            results_json = json.dumps(results, indent=2)
+            context_message += "\n\nSearch results:\n" + results_json
+        
         logger.info("Calling OpenAI Agents SDK to generate search summary...")
         logger.debug(f"Context: {context_message}")
         
@@ -193,7 +174,7 @@ async def generate_search_summary(
         
         # Convert to dict for JSON response
         output = summary_output.model_dump() if hasattr(summary_output, 'model_dump') else {
-            "summary": "Searching for properties matching your criteria.",
+            "summary": f"Found {total or 0} properties matching your search criteria.",
             "search_ideas": []
         }
         
@@ -206,6 +187,6 @@ async def generate_search_summary(
     except Exception as e:
         logger.error(f"Error generating search summary with OpenAI Agents SDK: {e}", exc_info=True)
         return {
-            "summary": "Searching for properties matching your criteria.",
+            "summary": f"Found {total or 0} properties matching your search criteria.",
             "search_ideas": []
         }

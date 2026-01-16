@@ -1,6 +1,6 @@
 import logging
-from fastapi import APIRouter, Query
-from typing import Optional
+from fastapi import APIRouter, Query, Body
+from typing import Optional, List, Dict, Any
 from query_interpreter import interpret_user_query
 from mock_data import MOCK_PROPERTIES
 from utils import (
@@ -244,22 +244,23 @@ async def search(
     
     return result
 
-@router.get("/summary")
+@router.post("/summary")
 async def summary(
-    q: Optional[str] = Query(None, description="User's search query (what they typed)"),
-    title: Optional[str] = Query(None, description="Search term for property title"),
-    description: Optional[str] = Query(None, description="Search term for property description"),
-    property_type: Optional[str] = Query(None, description="Comma-separated property types"),
-    bedrooms: Optional[str] = Query(None, description="Comma-separated bedroom counts"),
-    min_price: Optional[int] = Query(None),
-    max_price: Optional[int] = Query(None),
-    min_sqft: Optional[int] = Query(None),
-    max_sqft: Optional[int] = Query(None),
-    total: Optional[int] = Query(None, description="Total number of search results"),
+    q: Optional[str] = Body(None, description="User's search query (what they typed)"),
+    title: Optional[str] = Body(None, description="Search term for property title"),
+    description: Optional[str] = Body(None, description="Search term for property description"),
+    property_type: Optional[str] = Body(None, description="Comma-separated property types"),
+    bedrooms: Optional[str] = Body(None, description="Comma-separated bedroom counts"),
+    min_price: Optional[int] = Body(None),
+    max_price: Optional[int] = Body(None),
+    min_sqft: Optional[int] = Body(None),
+    max_sqft: Optional[int] = Body(None),
+    total: Optional[int] = Body(None, description="Total number of search results"),
+    results: Optional[List[Dict[str, Any]]] = Body(None, description="Full list of search results"),
 ):
     """Generate an AI-powered summary of search results and suggest related search ideas."""
     logger.info("=" * 60)
-    logger.info("GET /api/intermediate_ai/summary - Summary request received")
+    logger.info("POST /api/intermediate_ai/summary - Summary request received")
     logger.info(f"  Query: {q}")
     logger.info(f"  Title: {title}")
     logger.info(f"  Description: {description}")
@@ -268,6 +269,7 @@ async def summary(
     logger.info(f"  Price range: ${min_price} - ${max_price}")
     logger.info(f"  Square feet: {min_sqft} - {max_sqft}")
     logger.info(f"  Total results: {total}")
+    logger.info(f"  Results provided: {len(results) if results else 0} properties")
     
     try:
         summary_result = await generate_search_summary(
@@ -281,6 +283,7 @@ async def summary(
             min_sqft=min_sqft,
             max_sqft=max_sqft,
             total=total,
+            results=results or [],
         )
         
         logger.info("  Summary generated successfully")

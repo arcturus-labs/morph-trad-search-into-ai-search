@@ -297,29 +297,35 @@ export async function searchPropertiesIntermediateAI(params: SearchParams): Prom
   }
 }
 
-export async function getSearchSummaryIntermediateAI(params: SearchParams & { total?: number }): Promise<SearchSummary> {
+export async function getSearchSummaryIntermediateAI(params: SearchParams & { total?: number; results?: Property[] }): Promise<SearchSummary> {
   console.log('📡 API: getSearchSummaryIntermediateAI() called')
   console.log('  API_BASE_URL:', API_BASE_URL)
   console.log('  Params:', params)
+  console.log('  Results count:', params.results?.length || 0)
   
-  const queryParams = new URLSearchParams();
-  
-  if (params.q) queryParams.append('q', params.q);
-  if (params.title) queryParams.append('title', params.title);
-  if (params.description) queryParams.append('description', params.description);
-  if (params.property_type?.length) queryParams.append('property_type', params.property_type.join(','));
-  if (params.bedrooms?.length) queryParams.append('bedrooms', params.bedrooms.join(','));
-  if (params.min_price !== undefined) queryParams.append('min_price', params.min_price.toString());
-  if (params.max_price !== undefined) queryParams.append('max_price', params.max_price.toString());
-  if (params.min_sqft !== undefined) queryParams.append('min_sqft', params.min_sqft.toString());
-  if (params.max_sqft !== undefined) queryParams.append('max_sqft', params.max_sqft.toString());
-  if (params.total !== undefined) queryParams.append('total', params.total.toString());
-  
-  const url = `${API_BASE_URL}/intermediate_ai/summary?${queryParams.toString()}`;
-  console.log('  Fetching URL:', url);
+  const url = `${API_BASE_URL}/intermediate_ai/summary`;
+  console.log('  POST URL:', url);
   
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        q: params.q,
+        title: params.title,
+        description: params.description,
+        property_type: params.property_type?.join(','),
+        bedrooms: params.bedrooms?.join(','),
+        min_price: params.min_price,
+        max_price: params.max_price,
+        min_sqft: params.min_sqft,
+        max_sqft: params.max_sqft,
+        total: params.total,
+        results: params.results || [],
+      }),
+    });
     console.log('  Response status:', response.status, response.statusText);
     
     if (!response.ok) {

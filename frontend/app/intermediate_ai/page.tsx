@@ -141,8 +141,10 @@ function SearchPage() {
             min_sqft: minSqft,
             max_sqft: maxSqft,
             total: searchResults.total,
+            results: searchResults.results,
           }
           console.log('📡 Fetching search summary with params:', summaryParams)
+          console.log('  Results count:', searchResults.results.length)
           const summaryData = await getSearchSummaryIntermediateAI(summaryParams)
           console.log('✅ Summary received:', summaryData)
           setSummary(summaryData)
