@@ -6,6 +6,7 @@ import FacetsSidebar from '@/components/FacetsSidebar'
 import ResultsHeader from '@/components/ResultsHeader'
 import PropertyCard from '@/components/PropertyCard'
 import DemoTools from '@/components/DemoTools'
+import SubscriptionCheck, { SubscriptionCheckRef } from '@/components/SubscriptionCheck'
 import { searchProperties, sendChatMessage, SearchResponse, Facets, InterpretedQuery } from '@/lib/api'
 import { EXAMPLE_QUERIES } from '@/lib/constants'
 import { toTitleCase } from '@/lib/searchUtils'
@@ -27,6 +28,7 @@ function SearchPage() {
   const exampleQueriesRef = useRef<HTMLDivElement>(null)
   const previousQueryParams = useRef<{ q: string | null; title: string | null; description: string | null } | null>(null)
   const pendingQueryRef = useRef<string | null>(null)
+  const subscriptionCheckRef = useRef<SubscriptionCheckRef>(null)
 
   // Chat state
   const [chatHistory, setChatHistory] = useState<Array<{id: string, role: 'user' | 'assistant', content: string, timestamp: Date}>>([])
@@ -479,6 +481,11 @@ function SearchPage() {
     const message = chatInput.trim()
     if (!message || chatLoading) return
     
+    // Check subscription before proceeding
+    if (subscriptionCheckRef.current && !subscriptionCheckRef.current.checkSubscription()) {
+      return // Modal will be shown by SubscriptionCheck component
+    }
+    
     // Get session_id from URL
     const sessionId = searchParams.get('session_id')
     
@@ -604,6 +611,7 @@ function SearchPage() {
 
   return (
     <>
+      <SubscriptionCheck ref={subscriptionCheckRef} />
       <DemoTools 
         params={allUrlParams}
         showExampleQueries={showExampleQueries}

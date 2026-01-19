@@ -8,6 +8,7 @@ import FacetsSidebar from '@/components/FacetsSidebar'
 import ResultsHeader from '@/components/ResultsHeader'
 import PropertyCard from '@/components/PropertyCard'
 import DemoTools from '@/components/DemoTools'
+import SubscriptionCheck, { SubscriptionCheckRef } from '@/components/SubscriptionCheck'
 import { searchProperties, interpretQueryBeginnerAI, SearchResponse, Facets, InterpretedQuery } from '@/lib/api'
 import { EXAMPLE_QUERIES } from '@/lib/constants'
 import { toTitleCase } from '@/lib/searchUtils'
@@ -28,6 +29,7 @@ function SearchPage() {
   const previousQParam = useRef<string>('')
   const [showExampleQueries, setShowExampleQueries] = useState(false)
   const exampleQueriesRef = useRef<HTMLDivElement>(null)
+  const subscriptionCheckRef = useRef<SubscriptionCheckRef>(null)
 
   console.log('='.repeat(60))
   console.log('🔍 SearchPage Component Rendered')
@@ -194,6 +196,11 @@ function SearchPage() {
   }, [showExampleQueries])
 
   const handleExampleQueryClick = (exampleQuery: string) => {
+    // Check subscription before proceeding
+    if (subscriptionCheckRef.current && !subscriptionCheckRef.current.checkSubscription()) {
+      return // Modal will be shown by SubscriptionCheck component
+    }
+    
     setQuery(exampleQuery)
     setShowExampleQueries(false)
     
@@ -233,6 +240,20 @@ function SearchPage() {
   const handleSearch = () => {
     console.log('🔍 handleSearch() called')
     console.log('  Query:', query)
+    console.log('  SubscriptionCheck ref:', subscriptionCheckRef.current)
+    
+    // Check subscription before proceeding
+    if (!subscriptionCheckRef.current) {
+      console.error('⚠️ SubscriptionCheck ref is not initialized!')
+      return
+    }
+    
+    if (!subscriptionCheckRef.current.checkSubscription()) {
+      console.log('  ⛔ Subscription check failed - blocking search')
+      return // Modal will be shown by SubscriptionCheck component
+    }
+    
+    console.log('  ✅ Subscription check passed - proceeding with search')
     
     // Clear interpreted query when search button is clicked
     setInterpretedQuery(null)
@@ -370,6 +391,7 @@ function SearchPage() {
 
   return (
     <>
+      <SubscriptionCheck ref={subscriptionCheckRef} />
       <DemoTools 
         params={allUrlParams}
         showExampleQueries={showExampleQueries}

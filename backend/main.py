@@ -1,7 +1,9 @@
 import os
 import logging
+import requests
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from typing import Optional, Annotated
 from beginner.router import router as beginner_ai_router
 from intermediate.router import router as intermediate_ai_router
@@ -88,6 +90,67 @@ async def get_facets():
     facets = calculate_facets(MOCK_PROPERTIES)
     logger.info(f"  Returning facets for {len(MOCK_PROPERTIES)} properties")
     return facets
+
+# Subscription verification endpoint
+class SubscriptionRequest(BaseModel):
+    email: str
+
+@app.post("/api/verify_subscription")
+async def verify_subscription(request: SubscriptionRequest):
+    """Verify subscription status via ConvertKit API."""
+    email = request.email
+    
+    if not email:
+        return {"subscribed": False, "error": "Email is required"}
+
+    api_secret = os.getenv('CONVERTKIT_API_SECRET')
+    api_key = os.getenv('CONVERTKIT_API_KEY')
+    form_id = os.getenv('CONVERTKIT_FORM_ID')
+
+    if not api_secret or not api_key:
+        logger.warning("ConvertKit API credentials not configured")
+        return {"subscribed": False, "error": "Subscription service not configured"}
+
+    # First, check if email is already subscribed
+    try:
+        verify_url = 'https://api.convertkit.com/v3/subscribers'
+        params = {
+            'api_secret': api_secret,
+            'email_address': email
+        }
+        verify_response = requests.get(verify_url, params=params, timeout=10)
+        verify_response.raise_for_status()
+        
+        # If we get subscriber data back, they are subscribed
+        subscriber_data = verify_response.json()
+        if subscriber_data.get('total_subscribers') and subscriber_data['total_subscribers'] > 0:
+            logger.info(f"Email {email} is already subscribed")
+            return {"subscribed": True, "error": None}
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Error verifying subscription: {e}")
+        # Continue to attempt subscription if verification fails
+    
+    # If not subscribed, attempt to subscribe them automatically
+    if form_id:
+        try:
+            url = f'https://api.convertkit.com/v3/forms/{form_id}/subscribe'
+            headers = {'Content-Type': 'application/json; charset=utf-8'}
+            payload = {
+                'api_key': api_key,
+                'email': email
+            }
+            
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
+            response.raise_for_status()
+            logger.info(f"Successfully subscribed {email} to form {form_id}")
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Error subscribing email: {e}")
+            return {"subscribed": False, "error": f"Subscription error: {str(e)}"}
+    else:
+        logger.warning("ConvertKit form ID not configured")
+        return {"subscribed": False, "error": "Subscription form not configured"}
+    
+    return {"subscribed": False, "error": None}
 
 # Include beginner_ai router for /interpret endpoint only
 app.include_router(beginner_ai_router)
